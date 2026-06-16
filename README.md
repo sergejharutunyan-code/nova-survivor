@@ -74,7 +74,8 @@ which makes enemy scaling far easier to tune and unlocks the **wave-skip** meta 
 
 - **Each wave** steps enemy HP/damage, spawn rate, and the enemy mix up by a fixed amount
   (`difficultyScale(wave)`, `dmgScale(wave)`, `enemyTypeFor(wave)`). Normal waves last
-  `WAVE_TIME` seconds; **every 5th wave is a BOSS wave** that holds the run until it's cleared.
+  `WAVE_TIME` seconds; **every 10th wave is a BOSS wave** that holds the run until it's cleared
+  (and roughly every 4th boss is a rare, far tougher **mega-boss** event with a big loot payout).
 - **Wave Skip (meta upgrade, coins).** Buy the right to start runs at a later wave — but each tier
   is **gated behind actually reaching that wave** (`save.maxWave`). e.g. *Start at Wave 10* only
   appears once you've survived to wave 10. A **start-wave selector** on the main menu lets you pick

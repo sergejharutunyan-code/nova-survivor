@@ -195,6 +195,8 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
 .disclaimer{font-size:11px;color:var(--faint);max-width:540px;line-height:1.5;}
 
 .gacha-items{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:580px;}
+.gacha-again-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:min(440px,92vw);}
+.gacha-again-row .btn{flex:1 1 auto;min-width:140px;}
 .gacha-card{width:126px;padding:16px 11px;border-radius:16px;background:linear-gradient(180deg,rgba(20,25,50,.9),rgba(10,13,30,.95));
   border:2px solid #333;display:flex;flex-direction:column;align-items:center;gap:7px;animation:pop .38s cubic-bezier(.2,1.5,.4,1) both;}
 .gacha-card .ic{display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.04);}
@@ -596,7 +598,10 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
     <div id="gachaResult" class="screen overlay hidden">
       <h2 id="gachaTitle">Reward!</h2>
       <div id="gachaItems" class="gacha-items"></div>
-      <button class="btn primary" id="gachaClose">Awesome!</button>
+      <div class="gacha-again-row">
+        <button class="btn gold hidden" id="gachaAgain"></button>
+        <button class="btn primary" id="gachaClose">Awesome!</button>
+      </div>
     </div>
 
     <!-- ===== Pause ===== -->
@@ -1552,9 +1557,9 @@ const SHIPS = {
                desc:'Hits like a truck, folds like paper — pure aggression.', mods:{ dmg:0.15, hp:-0.20 } },
   bastion:   { name:'Bastion',   sprite:'ship_bastion',   weapon:'orbit',   cost:2500, cur:'coins', role:'Fortress',
                desc:'A walking wall. Outlasts anything, in no hurry to do it.', mods:{ hp:0.40, regen:1, speed:-0.12 } },
-  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:80,   cur:'gems', role:'Assassin',
+  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:400,  cur:'gems', role:'Assassin',
                desc:'Fast, surgical, deadly on the crit — but fragile.', mods:{ speed:0.15, crit:0.10, hp:-0.10 } },
-  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:150,  cur:'gems', role:'Flagship',
+  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:750,  cur:'gems', role:'Flagship',
                desc:'The complete package — strong at everything, weak at nothing.', mods:{ dmg:0.10, fire:0.10, hp:0.10, speed:0.10, xp:0.10 } },
 };
 if (!SHIPS[save.ship] || !save.ships.includes(save.ship)) save.ship = 'vanguard';
@@ -1663,7 +1668,7 @@ window.addEventListener('keyup',   e=>{ keys[e.key.toLowerCase()] = false; });
 // Normal waves clear on a timer; every Nth wave is a BOSS wave that holds the
 // run until the boss(es) die.
 const WAVE_TIME = 20;                 // seconds per normal wave  (tuning knob)
-const BOSS_EVERY = 5;                 // every Nth wave is a boss wave
+const BOSS_EVERY = 10;                // every Nth wave is a boss wave
 const isBossWave = (w) => w % BOSS_EVERY === 0;
 function updateWaves(dt) {
   if (G.bossWave) {                   // a boss wave holds the run until it's cleared
@@ -1766,7 +1771,8 @@ function spawnBoss() {
 }
 
 // ===== ULTIMATE BOSSES — unique, with their own attacks =====
-const NORMAL_PER_ULTIMATE = 2;   // after this many normal bosses, an ultimate event fires
+const NORMAL_PER_ULTIMATE = 3;   // after this many normal bosses, a (rare) MEGA-boss event fires
+const MEGA_HP = 1.3, MEGA_DMG = 1.25;  // mega bosses tank & hit harder than a normal boss of the same wave
 const ULTRA_BOSSES = [
   { sprite:'u_overlord', name:'The Overlord', hp:3200, r:60, spd:40, dmg:34, attack:'summon', color:'#b56bff' },
   { sprite:'u_warden',   name:'The Warden',   hp:3000, r:58, spd:34, dmg:30, attack:'radial', color:'#3df0ff' },
@@ -1796,9 +1802,9 @@ function spawnUltra(def, hs, angle) {
     r:def.r, color:def.color,
     x: G.player.x + Math.cos(angle)*range,
     y: G.player.y + Math.sin(angle)*range,
-    hp: def.hp*hs, maxHp: def.hp*hs,
-    spd: def.spd, dmg: def.dmg * dmgScale(G.wave),
-    xp:60, coin:30, boss:true,
+    hp: def.hp*hs*MEGA_HP, maxHp: def.hp*hs*MEGA_HP,
+    spd: def.spd, dmg: def.dmg * dmgScale(G.wave) * MEGA_DMG,
+    xp:90, coin:30, boss:true,
     hitFlash:0, knock:{x:0,y:0}, frozen:0, hazCD:0, orbCD:0,
     atkCD: rand(2,4), spin:0, chargeT:0, spdMul:1,
   };
@@ -1866,15 +1872,15 @@ function rollDamage(base) {
 function killEnemy(e) {
   e.dead = true;
   G.kills++;
-  const gemN = e.ultra ? 28 : e.boss ? 14 : e.elite ? 5 : 1;
+  const gemN = e.ultra ? 60 : e.boss ? 14 : e.elite ? 5 : 1;
   for (let i = 0; i < gemN; i++) {
     G.gems.push({ x:e.x+rand(-e.r,e.r), y:e.y+rand(-e.r,e.r), vx:rand(-40,40), vy:rand(-40,40), xp:e.xp, r:5 });
   }
   // coin drops (bosses & elites always drop a handful; ultimates a hoard)
-  const coinN = e.ultra ? 20 : e.boss ? 12 : e.elite ? 3 : 1;
+  const coinN = e.ultra ? 48 : e.boss ? 12 : e.elite ? 3 : 1;
   if (e.boss || e.elite || Math.random() < e.coin) {
     for (let i=0;i<coinN;i++)
-      G.coins.push({ x:e.x+rand(-e.r,e.r), y:e.y+rand(-e.r,e.r), vx:rand(-50,50), vy:rand(-50,50), v: e.ultra?3:e.boss?2:1, r:6 });
+      G.coins.push({ x:e.x+rand(-e.r,e.r), y:e.y+rand(-e.r,e.r), vx:rand(-50,50), vy:rand(-50,50), v: e.ultra?5:e.boss?2:1, r:6 });
   }
   // splitter — bursts into fast swarmlings
   if (e.splits && !e.isChild) {
@@ -1893,7 +1899,7 @@ function killEnemy(e) {
   burst(e.x, e.y, e.color, e.boss?26:8);
   if (e.boss) {
     G.bossesAlive = Math.max(0, G.bossesAlive - 1); G.bossesKilled++; G.shake = 12;
-    const bonus = Math.round((e.ultra ? 20 : 8) * G.player.coinMult);
+    const bonus = Math.round((e.ultra ? 60 : 8) * G.player.coinMult);
     G.runCoins += bonus;
     toast((e.ultra ? (e.name||'Ultimate')+' down!' : 'Boss down!') + ' &nbsp;+'+bonus+' '+ico('coin',14), 1500);
   }
@@ -3133,8 +3139,10 @@ function rarityRoll() {
   for (const g of GACHA) { r -= g.w; if (r <= 0) return g; }
   return GACHA[0];
 }
+let lastPull = { n:1, cost:10 };   // last crate pull, so the result popup can offer "Pull Again ×N"
 function doPull(n, cost) {
   if (save.gems < cost) { toast('Not enough '+ico('gem',13)+' — get more below!'); return; }
+  lastPull = { n, cost };
   save.gems -= cost;
   const results = [];
   for (let i = 0; i < n; i++) {
@@ -3160,6 +3168,9 @@ function showGacha(results) {
       <div class="rr">${RAR_LABEL[r.rar]}</div><div style="font-size:11px;color:#8a90c0">+${r.amt} ${r.stat}</div>`;
     wrap.appendChild(el);
   });
+  const again = $('gachaAgain');
+  again.classList.remove('hidden');
+  again.innerHTML = `${ico('refresh',15)} Pull Again ×${lastPull.n} <span class="cost">${ico('gem',13)} ${lastPull.cost}</span>`;
   show('gachaResult');
 }
 
@@ -3361,6 +3372,7 @@ function showWeaponUnlock(key) {
     `<div class="gacha-card r-legend"><div class="ic">${ico(d.icon,40)}</div><div class="nm">${d.name}</div>
      <div class="rr">Ultimate</div>
      <div style="font-size:11px;color:#8a90c0;max-width:150px;line-height:1.4">${d.desc}<br><b style="color:#ffcf3a">Now appears in your level-up choices.</b></div></div>`;
+  $('gachaAgain').classList.add('hidden');   // not a crate pull — no "pull again" here
   show('gachaResult');
 }
 function renderGoals() {
@@ -3478,6 +3490,7 @@ $('reviveBtn').onclick  = () => doRevive(false);
 $('claimBtn').onclick   = () => { finalizeRun(); G.state='menu'; hide('gameover'); refreshWallet(); show('menu'); };
 $('pull1').onclick      = () => doPull(1, 10);
 $('pull10').onclick     = () => doPull(10, 90);
+$('gachaAgain').onclick = () => doPull(lastPull.n, lastPull.cost);
 $('gachaClose').onclick = () => hide('gachaResult');
 document.querySelectorAll('#goals .tab').forEach(t => t.onclick = () => switchGoalTab(t.dataset.tab));
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => hide(b.dataset.close));
