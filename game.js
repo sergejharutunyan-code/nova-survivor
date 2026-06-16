@@ -1504,34 +1504,45 @@ const META_DEFS = [
   { key:'greed',    icon:'coins',       name:'Greed',     desc:'+6% coin gain / lvl',      base:45, step:1.26 },
 ];
 function metaCost(d){ return Math.floor(d.base * Math.pow(d.step, save.meta[d.key])); }
-let metaBuyQty = 1;                                    // ×1 / ×10 / ×100 bulk-buy amount
+let metaBuyQty = 1;                                    // 1 / 10 / 100 / 'max' bulk-buy amount
 function metaCostN(d, n) {                              // total coins to buy the next n levels
   let lvl = save.meta[d.key], total = 0;
   for (let i = 0; i < n; i++) total += Math.floor(d.base * Math.pow(d.step, lvl + i));
   return total;
+}
+function affordableMeta(d) {                            // how many levels you can buy with current coins
+  let coins = save.coins, lvl = save.meta[d.key], n = 0;
+  for (; n < 100000; n++) { const c = Math.floor(d.base * Math.pow(d.step, lvl + n)); if (coins < c) break; coins -= c; }
+  return n;
 }
 function buyMetaLevels(d, n) {                          // buy up to n levels, as many as affordable
   let bought = 0;
   for (let i = 0; i < n; i++) { const c = metaCost(d); if (save.coins < c) break; save.coins -= c; save.meta[d.key]++; bought++; }
   if (!bought) { toast('Not enough '+ico('coin',13)); return; }
   persist(); refreshWallet(); renderMeta(); SFX.buy();
-  if (n > 1) toast(d.name+' +'+bought+' lvl'+(bought>1?'s':''));
+  if (bought > 1) toast(d.name+' +'+bought+' lvls');
 }
 function renderMeta() {
   const list = $('metaList'); list.innerHTML = '';
   const qsel = $('metaQty');
   if (qsel) {
-    qsel.innerHTML = [1,10,100].map(n => `<button class="qty-btn${metaBuyQty===n?' active':''}" data-q="${n}">×${n}</button>`).join('');
-    qsel.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { metaBuyQty = +b.dataset.q; renderMeta(); });
+    qsel.innerHTML = [1,10,100,'max'].map(o =>
+      `<button class="qty-btn${metaBuyQty===o?' active':''}" data-q="${o}">${o==='max'?'MAX':'×'+o}</button>`).join('');
+    qsel.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+      const q = b.dataset.q; metaBuyQty = (q === 'max') ? 'max' : +q; renderMeta();
+    });
   }
-  const n = metaBuyQty;
+  const isMax = metaBuyQty === 'max';
   for (const d of META_DEFS) {
-    const lvl = save.meta[d.key], costN = metaCostN(d, n), can = save.coins >= metaCost(d);
+    const lvl = save.meta[d.key];
+    const n = isMax ? affordableMeta(d) : metaBuyQty;
+    const costN = (isMax && n === 0) ? metaCost(d) : metaCostN(d, n);
+    const can = save.coins >= metaCost(d);
     const el = document.createElement('div'); el.className='shop-item';
     el.innerHTML = `<div class="ic">${ico(d.icon,26)}</div>
       <div class="info"><h4>${d.name} <span class="lvltag">Lv ${lvl}</span></h4><p>${d.desc}</p></div>
       <button ${can?'':'disabled'}>${ico('coin',14)} ${fmt(costN)}${n>1?` <span class="cost">×${n}</span>`:''}</button>`;
-    el.querySelector('button').onclick = () => buyMetaLevels(d, n);
+    el.querySelector('button').onclick = () => buyMetaLevels(d, isMax ? affordableMeta(d) : metaBuyQty);
     list.appendChild(el);
   }
 }
@@ -1859,11 +1870,11 @@ function doPull(n, cost) {
   showGacha(results);
 }
 function showGacha(results) {
-  $('gachaTitle').textContent = results.length>1 ? '10× Pull Results!' : 'You Got…';
+  $('gachaTitle').textContent = results.length>1 ? results.length+'× Pull Results!' : 'You Got…';
   const wrap = $('gachaItems'); wrap.innerHTML='';
   results.forEach((r,i)=>{
     const el = document.createElement('div');
-    el.className = 'gacha-card r-'+r.rar; el.style.animationDelay = (i*0.05)+'s';
+    el.className = 'gacha-card r-'+r.rar; el.style.animationDelay = Math.min(i*0.05, 1.2)+'s';
     el.innerHTML = `<div class="ic">${ico(r.icon,30)}</div><div class="nm">${r.nm}</div>
       <div class="rr">${RAR_LABEL[r.rar]}</div><div style="font-size:11px;color:#8a90c0">+${r.amt} ${r.stat}</div>`;
     wrap.appendChild(el);
@@ -2191,6 +2202,7 @@ $('reviveBtn').onclick  = () => doRevive(false);
 $('claimBtn').onclick   = () => { finalizeRun(); G.state='menu'; hide('gameover'); refreshWallet(); show('menu'); };
 $('pull1').onclick      = () => doPull(1, 10);
 $('pull10').onclick     = () => doPull(10, 90);
+$('pull100')  && ($('pull100').onclick = () => doPull(100, 850));
 $('gachaAgain').onclick = () => doPull(lastPull.n, lastPull.cost);
 $('gachaClose').onclick = () => hide('gachaResult');
 document.querySelectorAll('#goals .tab').forEach(t => t.onclick = () => switchGoalTab(t.dataset.tab));

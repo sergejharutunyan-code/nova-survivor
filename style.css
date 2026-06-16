@@ -186,7 +186,7 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
   background:radial-gradient(circle at 50% 30%, rgba(255,209,102,.25), rgba(255,209,102,.05));border:1px solid rgba(255,209,102,.35);
   filter:drop-shadow(0 0 18px rgba(255,209,102,.4));}
 .gacha-desc{font-size:13px;color:var(--dim);line-height:1.5;}
-.gacha-btns{display:flex;gap:10px;}
+.gacha-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
 .disclaimer{font-size:11px;color:var(--faint);max-width:540px;line-height:1.5;}
 
 .gacha-items{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:580px;}
