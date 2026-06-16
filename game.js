@@ -24,7 +24,7 @@ const SAVE_KEY = 'nova_survivor_save_v1';
 const DEFAULT_SAVE = {
   coins: 0, gems: 25,
   meta:   { might:0, vitality:0, swift:0, greed:0, magnet:0, haste:0 },
-  p2w:    { coinDoubler:0, megaDmg:0, guardian:0, vip:0, arsenal:0 },
+  p2w:    { coinDoubler:0, megaDmg:0, guardian:0, vip:0, arsenal:0, gameSpeed:0 },
   relics: { dmg:0, hp:0, speed:0, firerate:0, magnet:0, xp:0, crit:0 },
   best:   { time:0, kills:0 },
   // wave progression: highest wave ever reached + the chosen / unlocked start wave
@@ -1284,11 +1284,14 @@ function drawGrid(ox, oy) {
   ctx.stroke();
 }
 // ------------------------------------------------------------------ main loop
+// Gameplay runs at 1/3 speed by default; the premium "Game Speed" upgrade buys it back (Tier 2 = normal).
+const GAME_SPEED_BASE = 1/3;
+function gameSpeedMult() { return GAME_SPEED_BASE * (1 + (save.p2w.gameSpeed || 0)); }
 let last = performance.now();
 function frame(now) {
   let dt = (now - last) / 1000; last = now;
   dt = Math.min(dt, 0.05);
-  if (G.state === 'play') update(dt);
+  if (G.state === 'play') update(dt * gameSpeedMult());
   render();
   requestAnimationFrame(frame);
 }
@@ -1600,6 +1603,7 @@ function cycleStartWave(dir) {
 }
 
 const P2W_DEFS = [
+  { key:'gameSpeed',   icon:'fastforward', name:'Game Speed',         desc:'Gameplay runs at 1/3 speed by default. Each tier adds +1/3 — Tier 2 restores full normal speed, up to 1.7× at max.', cost:60, max:4 },
   { key:'coinDoubler', icon:'coin', name:'×2 Coins — Forever', desc:'Permanently DOUBLE all coins earned. The classic.', cost:100,  once:true },
   { key:'megaDmg',     icon:'skull', name:'Mega Damage +50%',   desc:'Stacks. Each tier adds +50% base damage to every run.', cost:80, max:5 },
   { key:'guardian',    icon:'shield', name:'Guardian Angel',     desc:'Auto-revive once per run, free. Never lose to one mistake.', cost:120, once:true },
