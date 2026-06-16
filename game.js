@@ -28,7 +28,7 @@ const DEFAULT_SAVE = {
   relics: { dmg:0, hp:0, speed:0, firerate:0, magnet:0, xp:0, crit:0 },
   best:   { time:0, kills:0 },
   // wave progression: highest wave ever reached + the chosen / unlocked start wave
-  maxWave: 1, skipMax: 1, startWave: 1,
+  maxWave: 1, skipMax: 1, startWave: 1, skipOn: true,
   // lifetime + best stats that feed quests
   lifeStats: { kills:0, coins:0, bosses:0, runs:0, bestTime:0, bestLevel:0, bestWeapons:1, bestWave:0 },
   // per-field count of quests completed (chain progress)
@@ -243,12 +243,12 @@ function baseStats() {
   const vip = p.vip ? 1 : 0;
   const sh = SHIPS[save.ship] || SHIPS.vanguard, mod = sh.mods;
   return {
-    maxHp:        (100 + m.vitality*20 + r.hp*8 + vip*20) * (1 + (mod.hp||0)),
-    moveSpeed:    (200 + m.swift*14 + r.speed*4) * (1 + (mod.speed||0)),
-    damageMult:   (1 + m.might*0.12 + r.dmg*0.03 + p.megaDmg*0.5 + vip*0.2) * (1 + (mod.dmg||0)),
-    fireRateMult: (1 + m.haste*0.08 + r.firerate*0.02 + vip*0.2) * (1 + (mod.fire||0)),
-    pickupRange:  75 + m.magnet*16 + r.magnet*5,
-    coinMult:     (1 + m.greed*0.15) * (p.coinDoubler?2:1) * (vip?1.2:1),
+    maxHp:        (100 + m.vitality*10 + r.hp*8 + vip*20) * (1 + (mod.hp||0)),
+    moveSpeed:    (200 + m.swift*7 + r.speed*4) * (1 + (mod.speed||0)),
+    damageMult:   (1 + m.might*0.06 + r.dmg*0.03 + p.megaDmg*0.5 + vip*0.2) * (1 + (mod.dmg||0)),
+    fireRateMult: (1 + m.haste*0.04 + r.firerate*0.02 + vip*0.2) * (1 + (mod.fire||0)),
+    pickupRange:  75 + m.magnet*8 + r.magnet*5,
+    coinMult:     (1 + m.greed*0.06) * (p.coinDoubler?2:1) * (vip?1.2:1),
     xpMult:       (1 + r.xp*0.02 + vip*0.2) * (1 + (mod.xp||0)),
     crit:         0.05 + r.crit*0.01 + (mod.crit||0),
     critMult:     2.1,
@@ -285,6 +285,7 @@ function xpForLevel(lv) { return Math.floor(5 + (lv-1)*4 + Math.pow(lv,1.7)); }
 // ------------------------------------------------------------------ input (floating joystick + keyboard)
 const input = { active:false, sx:0, sy:0, cx:0, cy:0, kx:0, ky:0 };
 const keys = {};
+const TURN_RATE = 11;   // player facing turns at this rate (rad/s) — smooth, not instant
 function moveVector() {
   let dx = 0, dy = 0;
   if (input.active) {
@@ -530,7 +531,7 @@ function rollDamage(base) {
 function killEnemy(e) {
   e.dead = true;
   G.kills++;
-  const gemN = e.ultra ? 60 : e.boss ? 14 : e.elite ? 5 : 1;
+  const gemN = e.ultra ? 6 : e.boss ? 14 : e.elite ? 5 : 1;   // mega bosses pay out in coins, not XP-gem orbs
   for (let i = 0; i < gemN; i++) {
     G.gems.push({ x:e.x+rand(-e.r,e.r), y:e.y+rand(-e.r,e.r), vx:rand(-40,40), vy:rand(-40,40), xp:e.xp, r:5 });
   }
@@ -853,7 +854,15 @@ function update(dt) {
   // movement
   const mv = moveVector();
   p.moving = !!(mv.x || mv.y);
-  if (mv.x || mv.y) { p.face = Math.atan2(mv.y, mv.x); }
+  if (mv.x || mv.y) {
+    // rotate toward the input direction at a fixed turn rate instead of snapping
+    let d = Math.atan2(mv.y, mv.x) - p.face;
+    while (d >  Math.PI) d -= TAU;
+    while (d < -Math.PI) d += TAU;
+    const step = TURN_RATE * dt;
+    p.face += Math.abs(d) <= step ? d : Math.sign(d) * step;
+    if (p.face >  Math.PI) p.face -= TAU; else if (p.face < -Math.PI) p.face += TAU;
+  }
   p.x += mv.x * p.moveSpeed * dt;
   p.y += mv.y * p.moveSpeed * dt;
 
@@ -1295,7 +1304,7 @@ function refreshWallet() {
 }
 
 function startRun() {
-  const startWave = clamp(save.startWave||1, 1, save.skipMax||1);
+  const startWave = save.skipOn === false ? 1 : clamp(save.startWave||1, 1, save.skipMax||1);
   Object.assign(G, {
     state:'play', enemies:[], bullets:[], ebullets:[], gems:[], coins:[], parts:[], texts:[], orbs:[], beams:[], hazards:[],
     time:0, kills:0, runCoins:0, spawnT:0, bossesKilled:0, bossesAlive:0, bossEvent:0, ultraIndex:0, revives:0, finalized:false, pendingLevels:0,
@@ -1464,7 +1473,7 @@ function applyCard(c) {
 // handicap). Permanent power still carries from meta/relics/ship as usual.
 function applyWaveSkip(w) {
   const p = G.player;
-  const target = clamp(1 + Math.round((w-1)*0.9), 1, 80);
+  const target = clamp(1 + Math.round((w-1)*0.45), 1, 80);   // ~half the head-start you'd earn organically
   let guard = 0;
   while (p.level < target && guard++ < 300) {
     const cards = rollCards();
@@ -1484,25 +1493,26 @@ function pauseGame(){ if (G.state!=='play') return; G.state='pause'; hide('hud')
 function resumeGame(){ if (G.state!=='pause') return; G.state='play'; hide('pause'); show('hud'); last=performance.now(); }
 
 // ================================================================== SHOPS
+// Meta upgrades are LIMITLESS: a smaller per-level effect, gated by an
+// exponential coin cost (base * step^level). No cap — the price is the cap.
 const META_DEFS = [
-  { key:'might',    icon:'sword', name:'Might',     desc:'+12% base damage / lvl',   base:40,  step:1.55, max:15 },
-  { key:'vitality', icon:'heart', name:'Vitality',  desc:'+20 max HP / lvl',         base:35,  step:1.5,  max:15 },
-  { key:'swift',    icon:'boot', name:'Swiftness', desc:'+14 move speed / lvl',     base:30,  step:1.5,  max:12 },
-  { key:'haste',    icon:'fastforward', name:'Haste',     desc:'+8% base fire rate / lvl', base:50,  step:1.6,  max:12 },
-  { key:'magnet',   icon:'magnet', name:'Magnetism', desc:'+16 pickup range / lvl',   base:25,  step:1.45, max:10 },
-  { key:'greed',    icon:'coins', name:'Greed',     desc:'+15% coin gain / lvl',     base:60,  step:1.7,  max:10 },
+  { key:'might',    icon:'sword',       name:'Might',     desc:'+6% base damage / lvl',    base:30, step:1.22 },
+  { key:'vitality', icon:'heart',       name:'Vitality',  desc:'+10 max HP / lvl',         base:25, step:1.20 },
+  { key:'swift',    icon:'boot',        name:'Swiftness', desc:'+7 move speed / lvl',      base:25, step:1.20 },
+  { key:'haste',    icon:'fastforward', name:'Haste',     desc:'+4% base fire rate / lvl', base:35, step:1.24 },
+  { key:'magnet',   icon:'magnet',      name:'Magnetism', desc:'+8 pickup range / lvl',    base:20, step:1.18 },
+  { key:'greed',    icon:'coins',       name:'Greed',     desc:'+6% coin gain / lvl',      base:45, step:1.26 },
 ];
 function metaCost(d){ return Math.floor(d.base * Math.pow(d.step, save.meta[d.key])); }
 function renderMeta() {
   const list = $('metaList'); list.innerHTML = '';
   for (const d of META_DEFS) {
-    const lvl = save.meta[d.key], maxed = lvl >= d.max, cost = metaCost(d);
-    const can = !maxed && save.coins >= cost;
+    const lvl = save.meta[d.key], cost = metaCost(d), can = save.coins >= cost;
     const el = document.createElement('div'); el.className='shop-item';
     el.innerHTML = `<div class="ic">${ico(d.icon,26)}</div>
-      <div class="info"><h4>${d.name} <span class="lvltag">Lv ${lvl}/${d.max}</span></h4><p>${d.desc}</p></div>
-      <button ${maxed||!can?'disabled':''}>${maxed?'MAX':ico('coin',14)+' '+fmt(cost)}</button>`;
-    if (!maxed) el.querySelector('button').onclick = () => {
+      <div class="info"><h4>${d.name} <span class="lvltag">Lv ${lvl}</span></h4><p>${d.desc}</p></div>
+      <button ${can?'':'disabled'}>${ico('coin',14)} ${fmt(cost)}</button>`;
+    el.querySelector('button').onclick = () => {
       if (save.coins < cost) { toast('Not enough '+ico('coin',13)); return; }
       save.coins -= cost; save.meta[d.key]++; persist(); refreshWallet(); renderMeta(); SFX.buy();
     };
@@ -1521,27 +1531,21 @@ function allowedStartWaves() {                          // [1, 5, 10, … up to 
 }
 function renderSkip() {
   const list = $('skipList'); if (!list) return;
-  const visibleMax = Math.max(SKIP_STEP*4, (save.skipMax||1) + SKIP_STEP*2);  // a few tiers ahead
-  let html = '';
-  for (let w = SKIP_STEP; w <= visibleMax; w += SKIP_STEP) {
-    const owned = (save.skipMax||1) >= w, reached = (save.maxWave||1) >= w, cost = skipTierCost(w);
-    const can = !owned && reached && save.coins >= cost;
-    const tag = owned ? 'UNLOCKED' : reached ? 'Ready' : 'Locked';
-    const btn = owned ? '<button disabled>✓ Unlocked</button>'
-      : !reached ? `<button disabled>${ico('lock',13)} Reach W${w}</button>`
-      : `<button data-skip="${w}" ${can?'':'disabled'}>${ico('coin',14)} ${fmt(cost)}</button>`;
-    html += `<div class="shop-item"><div class="ic">${ico('fastforward',26)}</div>
-      <div class="info"><h4>Start at Wave ${w} <span class="lvltag">${tag}</span></h4>
-      <p>Begin runs at wave ${w} with an auto-built, level-scaled loadout.</p></div>${btn}</div>`;
-  }
-  list.innerHTML = html;
+  const cur = save.skipMax || 1, next = cur + SKIP_STEP;
+  const reached = (save.maxWave||1) >= next, cost = skipTierCost(next), can = reached && save.coins >= cost;
+  const btn = !reached
+    ? `<button disabled>${ico('lock',13)} Reach W${next}</button>`
+    : `<button data-skip="${next}" ${can?'':'disabled'}>${ico('coin',14)} ${fmt(cost)}</button>`;
+  list.innerHTML = `<div class="shop-item"><div class="ic">${ico('fastforward',26)}</div>
+    <div class="info"><h4>Wave Skip <span class="lvltag">Start: Wave ${cur}</span></h4>
+    <p>Unlock the next start wave (&rarr; Wave ${next}), then choose it on the menu. Skipped runs start level-scaled but grant only <b>half the XP</b> of running from Wave 1 — and you can switch skipping off anytime.</p></div>${btn}</div>`;
   list.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => buySkip(+b.dataset.skip));
 }
 function buySkip(w) {
   const cost = skipTierCost(w);
   if ((save.maxWave||1) < w) { toast('Reach wave '+w+' first'); return; }
   if (save.coins < cost)     { toast('Not enough '+ico('coin',13)); return; }
-  save.coins -= cost; save.skipMax = Math.max(save.skipMax||1, w); save.startWave = w;
+  save.coins -= cost; save.skipMax = Math.max(save.skipMax||1, w); save.startWave = w; save.skipOn = true;
   persist(); refreshWallet(); renderSkip(); renderWaveSelect(); SFX.buy();
   toast(ico('fastforward',15)+' Wave '+w+' unlocked — set as your start wave', 1900);
 }
@@ -1552,7 +1556,10 @@ function renderWaveSelect() {
   if (waves.length <= 1) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
   if (!waves.includes(save.startWave)) save.startWave = waves.reduce((a,b)=> b<=(save.startWave||1)?b:a, 1);
-  $('startWaveVal').textContent = save.startWave;
+  const on = save.skipOn !== false;
+  const tgl = $('skipToggle'); if (tgl) tgl.checked = on;
+  wrap.classList.toggle('skip-off', !on);
+  $('startWaveVal').textContent = on ? save.startWave : 1;
 }
 function cycleStartWave(dir) {
   const waves = allowedStartWaves();
@@ -2131,6 +2138,7 @@ $('goalsBtn').onclick   = () => { renderGoals(); show('goals'); };
 $('metaBtn').onclick    = () => { renderMeta(); renderSkip(); refreshWallet(); show('metashop'); };
 $('waveUp')   && ($('waveUp').onclick   = () => cycleStartWave(1));
 $('waveDown') && ($('waveDown').onclick = () => cycleStartWave(-1));
+$('skipToggle') && ($('skipToggle').onchange = e => { save.skipOn = e.target.checked; persist(); renderWaveSelect(); });
 $('premiumBtn').onclick = () => { renderP2W(); renderIAP(); refreshWallet(); show('premiumshop'); };
 $('pauseBtn').onclick   = () => pauseGame();
 $('resumeBtn').onclick  = () => resumeGame();

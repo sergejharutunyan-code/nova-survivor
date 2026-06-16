@@ -80,9 +80,11 @@ which makes enemy scaling far easier to tune and unlocks the **wave-skip** meta 
   is **gated behind actually reaching that wave** (`save.maxWave`). e.g. *Start at Wave 10* only
   appears once you've survived to wave 10. A **start-wave selector** on the main menu lets you pick
   any unlocked wave (1, 5, 10, …) before pressing PLAY.
-- **Skipping is a fast-forward, not a handicap.** Starting at a skipped wave drops you in at a
-  level scaled to that wave with an **auto-built loadout** (`applyWaveSkip`), so the run is
-  immediately playable. Permanent power (meta / relics / ship) carries as always.
+- **Skipping is a head start with a cost.** Starting at a skipped wave drops you in at a level
+  scaled to that wave with an **auto-built loadout** (`applyWaveSkip`) — but it grants only **half
+  the XP** you'd have earned running from Wave 1, so it's a discount, not free power. A **checkbox
+  on the menu** switches skipping off to run from Wave 1 anytime. Permanent power (meta / relics /
+  ship) carries as always.
 - Survival time is still tracked (HUD timer, "survive X seconds" challenges) — waves just drive the
   difficulty and the new **Reach Wave N** daily challenge.
 
