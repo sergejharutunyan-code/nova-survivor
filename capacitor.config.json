@@ -1,0 +1,19 @@
+{
+  "appId": "com.novastudio.survivor",
+  "appName": "NOVA Survivor",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#05060f"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#05060f",
+      "launchShowDuration": 1200,
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    }
+  }
+}

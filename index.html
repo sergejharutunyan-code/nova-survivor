@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#05060f" />
+  <title>NOVA SURVIVOR — Idle Galaxy Defender</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="assets/favicon-64.png" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <!-- ===== Boot splash ===== -->
+    <div id="splash">
+      <img class="splash-logo" src="assets/icon-512.png" alt="" />
+      <div class="splash-word">NOVA<b>SURVIVOR</b></div>
+      <div class="splash-load"><i></i></div>
+    </div>
+
+    <!-- ===== In-game HUD ===== -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-bars">
+          <div class="bar hp"><div id="hpFill" class="fill"></div><span id="hpText">100/100</span></div>
+          <div class="bar xp"><div id="xpFill" class="fill"></div><span id="xpText">Lv 1</span></div>
+        </div>
+        <div class="hud-stats">
+          <span class="chip wave"><span class="i" data-ico="fastforward" data-size="15"></span>Wave <b id="waveChip">1</b></span>
+          <span class="chip time"><span class="i" data-ico="clock" data-size="15"></span><b id="timeText">0:00</b></span>
+          <span class="chip coin"><span class="i" data-ico="coin" data-size="15"></span><b id="coinRun">0</b></span>
+          <span class="chip kill"><span class="i" data-ico="skull" data-size="15"></span><b id="killText">0</b></span>
+        </div>
+      </div>
+      <div id="waveBanner" class="wave-banner"></div>
+      <button id="pauseBtn" class="round-btn"><span class="i" data-ico="pause"></span></button>
+    </div>
+
+    <!-- ===== Main Menu ===== -->
+    <div id="menu" class="screen">
+      <div class="logo">
+        <h1>NOVA<span>SURVIVOR</span></h1>
+        <p class="tag">Idle Galaxy Defender</p>
+      </div>
+      <div class="wallet">
+        <span class="chip coin big"><span class="i" data-ico="coin" data-size="18"></span><b id="coinBal">0</b></span>
+        <span class="chip gem big"><span class="i" data-ico="gem" data-size="18"></span><b id="gemBal">0</b></span>
+      </div>
+      <div id="waveSelect" class="wave-select hidden">
+        <button id="waveDown" class="ws-btn">◀</button>
+        <span class="ws-label">Start · Wave <b id="startWaveVal">1</b></span>
+        <button id="waveUp" class="ws-btn">▶</button>
+      </div>
+      <div class="menu-btns">
+        <button id="playBtn" class="btn primary big"><span class="i" data-ico="play"></span> PLAY</button>
+        <button id="hangarBtn" class="btn"><span class="i" data-ico="rocket"></span> Hangar <span id="shipTag" class="lvltag"></span></button>
+        <button id="goalsBtn" class="btn"><span class="i" data-ico="quests"></span> Missions <span id="goalsBadge" class="badge hidden"></span></button>
+        <button id="statsBtn" class="btn"><span class="i" data-ico="stats"></span> Loadout &amp; Stats</button>
+        <button id="metaBtn" class="btn"><span class="i" data-ico="upgrades"></span> Upgrades</button>
+        <button id="premiumBtn" class="btn gold"><span class="i" data-ico="store"></span> Premium Store</button>
+      </div>
+      <p class="hint">Move with the on-screen stick (or WASD). Your guns fire automatically. Survive.</p>
+      <p class="version">v1.3 • offline-ready • Android-portable</p>
+    </div>
+
+    <!-- ===== Level-up card picker ===== -->
+    <div id="levelup" class="screen overlay hidden">
+      <h2>LEVEL UP!</h2>
+      <p class="sub">Choose your power</p>
+      <div id="cards" class="cards"></div>
+      <button id="rerollBtn" class="btn small"><span class="i" data-ico="refresh" data-size="15"></span> Reroll <span class="cost"><span class="i" data-ico="gem" data-size="13"></span> 1</span></button>
+    </div>
+
+    <!-- ===== Game over ===== -->
+    <div id="gameover" class="screen overlay hidden">
+      <h2 class="danger">YOU FELL</h2>
+      <div class="go-stats">
+        <div><span>Wave</span><b id="goWave">1</b></div>
+        <div><span>Survived</span><b id="goTime">0:00</b></div>
+        <div><span>Kills</span><b id="goKills">0</b></div>
+        <div><span>Coins earned</span><b id="goCoins">0</b></div>
+      </div>
+      <button id="reviveBtn" class="btn gold big">REVIVE <span class="cost"><span class="i" data-ico="gem" data-size="14"></span> <b id="reviveCost">5</b></span></button>
+      <button id="adReviveBtn" class="btn"><span class="i" data-ico="ad"></span> Free Revive <span class="cost">AD</span></button>
+      <button id="adDoubleBtn" class="btn"><span class="i" data-ico="ad"></span> Double Coins <span class="cost">AD</span></button>
+      <button id="claimBtn" class="btn primary">Collect &amp; Continue</button>
+    </div>
+
+    <!-- ===== Hangar (pilot ships) ===== -->
+    <div id="hangar" class="screen overlay hidden">
+      <div class="shop-head">
+        <h2><span class="i" data-ico="rocket"></span> Hangar</h2>
+        <span class="wallet">
+          <span class="chip coin"><span class="i" data-ico="coin" data-size="15"></span><b id="coinBal3">0</b></span>
+          <span class="chip gem"><span class="i" data-ico="gem" data-size="15"></span><b id="gemBal4">0</b></span>
+        </span>
+      </div>
+      <p class="pane-sub">Each ship starts with its own weapon and flies differently.</p>
+      <div id="shipList" class="shop-list"></div>
+      <button class="btn close" data-close="hangar"><span class="i" data-ico="back" data-size="16"></span> Back</button>
+    </div>
+
+    <!-- ===== Daily login reward ===== -->
+    <div id="daily" class="screen overlay hidden">
+      <h2><span class="i" data-ico="chest"></span> Daily Reward</h2>
+      <p class="sub" id="dailySub">Log in every day for bigger rewards</p>
+      <div id="dailyGrid" class="daily-grid"></div>
+      <button id="dailyClaim" class="btn gold big">Claim</button>
+      <button class="btn small" data-close="daily">Later</button>
+    </div>
+
+    <!-- ===== Rewarded ad (simulated) ===== -->
+    <div id="adOverlay" class="screen overlay hidden">
+      <div class="ad-box">
+        <span class="i" data-ico="ad" data-size="42"></span>
+        <h3>Ad playing…</h3>
+        <p class="ad-note">Simulated — wire a real rewarded ad here (see README)</p>
+        <div class="ad-bar"><i id="adFill"></i></div>
+      </div>
+    </div>
+
+    <!-- ===== Meta upgrade shop (coins) ===== -->
+    <div id="metashop" class="screen overlay hidden">
+      <div class="shop-head">
+        <h2><span class="i" data-ico="upgrades"></span> Upgrades</h2>
+        <span class="chip coin big"><span class="i" data-ico="coin" data-size="18"></span><b id="coinBal2">0</b></span>
+      </div>
+      <div id="metaList" class="shop-list"></div>
+
+      <h3 class="shop-section"><span class="i" data-ico="fastforward" data-size="15"></span> Wave Skip · start later (unlock by reaching the wave)</h3>
+      <div id="skipList" class="shop-list"></div>
+
+      <button class="btn close" data-close="metashop"><span class="i" data-ico="back" data-size="16"></span> Back</button>
+    </div>
+
+    <!-- ===== Loadout / stats overview ===== -->
+    <div id="stats" class="screen overlay hidden">
+      <div class="shop-head">
+        <h2 id="statsTitle">Loadout</h2>
+        <span class="chip power big"><span class="i" data-ico="power" data-size="18"></span> Power <b id="powerVal">0</b></span>
+      </div>
+      <h3 class="shop-section">Combat Stats</h3>
+      <div id="statGrid" class="stat-grid"></div>
+      <h3 class="shop-section" id="compSection">Active Components</h3>
+      <div id="compList" class="comp-list"></div>
+      <button class="btn close" data-close="stats"><span class="i" data-ico="back" data-size="16"></span> Back</button>
+    </div>
+
+    <!-- ===== Missions: daily challenges + lifetime quests + mastery ===== -->
+    <div id="goals" class="screen overlay hidden">
+      <div class="shop-head">
+        <h2><span class="i" data-ico="quests"></span> Missions</h2>
+        <span class="chip gem big"><span class="i" data-ico="gem" data-size="18"></span><b id="gemBal3">0</b></span>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="chal">Daily</button>
+        <button class="tab" data-tab="quest">Lifetime</button>
+        <button class="tab" data-tab="mastery">Mastery</button>
+      </div>
+      <div id="chalPane" class="goal-pane">
+        <p class="pane-sub"><span class="i" data-ico="refresh" data-size="14"></span> New set every day · resets in <b id="chalReset">…</b></p>
+        <div id="chalList" class="goal-list"></div>
+      </div>
+      <div id="questPane" class="goal-pane hidden">
+        <p class="pane-sub">Lifetime tracks — each unlocks step by step as you finish others, ending in an ultimate weapon.</p>
+        <div id="questList" class="goal-list"></div>
+      </div>
+      <div id="masteryPane" class="goal-pane hidden">
+        <p class="pane-sub">One-time achievements tied to your weapons &amp; ships.</p>
+        <div id="masteryList" class="goal-list"></div>
+      </div>
+      <button class="btn close" data-close="goals"><span class="i" data-ico="back" data-size="16"></span> Back</button>
+    </div>
+
+    <!-- ===== Premium store (gems / pay-to-win) ===== -->
+    <div id="premiumshop" class="screen overlay hidden">
+      <div class="shop-head">
+        <h2 class="gold-text"><span class="i" data-ico="gem"></span> Premium Store</h2>
+        <span class="chip gem big"><span class="i" data-ico="gem" data-size="18"></span><b id="gemBal2">0</b></span>
+      </div>
+
+      <h3 class="shop-section"><span class="i" data-ico="power" data-size="15"></span> Pay-to-Win Boosts</h3>
+      <div id="p2wList" class="shop-list"></div>
+
+      <h3 class="shop-section"><span class="i" data-ico="chest" data-size="15"></span> Legendary Crate (Gacha)</h3>
+      <div class="gacha">
+        <div class="gacha-art"><span class="i" data-ico="chest" data-size="40"></span></div>
+        <p class="gacha-desc">Pull for weapons &amp; relics. <b>Legendary</b> &amp; <b>Mythic</b> tiers grant huge permanent power.</p>
+        <div class="gacha-btns">
+          <button id="pull1" class="btn gold">Pull ×1 <span class="cost"><span class="i" data-ico="gem" data-size="13"></span> 10</span></button>
+          <button id="pull10" class="btn gold">Pull ×10 <span class="cost"><span class="i" data-ico="gem" data-size="13"></span> 90</span></button>
+        </div>
+      </div>
+
+      <h3 class="shop-section"><span class="i" data-ico="store" data-size="15"></span> Get Gems</h3>
+      <div id="iapList" class="shop-list"></div>
+      <p class="disclaimer">Purchases are <b>simulated</b> in this build. See README for wiring real Google Play billing on Android.</p>
+
+      <button class="btn close" data-close="premiumshop"><span class="i" data-ico="back" data-size="16"></span> Back</button>
+    </div>
+
+    <!-- ===== Gacha result popup ===== -->
+    <div id="gachaResult" class="screen overlay hidden">
+      <h2 id="gachaTitle">Reward!</h2>
+      <div id="gachaItems" class="gacha-items"></div>
+      <button class="btn primary" id="gachaClose">Awesome!</button>
+    </div>
+
+    <!-- ===== Pause ===== -->
+    <div id="pause" class="screen overlay hidden">
+      <h2>Paused</h2>
+      <button id="resumeBtn" class="btn primary big"><span class="i" data-ico="play"></span> Resume</button>
+      <button id="pauseStatsBtn" class="btn"><span class="i" data-ico="stats"></span> Stats</button>
+      <button id="pauseGoalsBtn" class="btn"><span class="i" data-ico="quests"></span> Missions <span id="pauseGoalsBadge" class="badge hidden"></span></button>
+      <button id="quitBtn" class="btn danger-btn"><span class="i" data-ico="flag"></span> End Run (counts as defeat)</button>
+    </div>
+
+    <!-- floating toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="icons.js"></script>
+  <script src="sprites.js"></script>
+  <script src="space.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

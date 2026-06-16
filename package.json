@@ -1,0 +1,15 @@
+{
+  "name": "nova-survivor",
+  "version": "1.3.0",
+  "private": true,
+  "description": "NOVA SURVIVOR — a hyper-addictive HTML5 auto-survivor with a pay-to-win economy. Web + Android (Capacitor).",
+  "scripts": {
+    "start": "npx --yes serve -l 8080 .",
+    "dev": "npx --yes serve -l 8080 .",
+    "android:add": "npx --yes @capacitor/cli add android",
+    "android:sync": "npx --yes @capacitor/cli sync android",
+    "android:open": "npx --yes @capacitor/cli open android"
+  },
+  "keywords": ["game", "html5", "canvas", "survivor", "idle", "mobile", "android", "capacitor"],
+  "license": "MIT"
+}

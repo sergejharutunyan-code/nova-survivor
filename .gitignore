@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Capacitor / native build output
+/android/
+/ios/
+.gradle/
+
+# Logs & caches
+*.log
+npm-debug.log*
+.cache/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
