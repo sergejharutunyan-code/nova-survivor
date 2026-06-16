@@ -68,32 +68,102 @@ const SHIP_PALS = {
   ship_specter:   { glow:'#34e07a', top:'#c4ffd9', mid:'#34e07a', bot:'#0e6b3e', accent:'#b56bff', stroke:'#e2fff0', canopy:'#a0ffce' },
   ship_sovereign: { glow:'#ffcf3a', top:'#fff3b0', mid:'#ffcf3a', bot:'#c98a10', accent:'#ff4d6d', stroke:'#fff7d0', canopy:'#ffe79a' },
 };
-function shipDrawer(pal) {
-  return (g, S) => {
-    glow(g, pal.glow, S, 0.10);
-    // hull
-    poly(g, [
-      [0,-S*0.46],[S*0.30,S*0.18],[S*0.34,S*0.34],[S*0.14,S*0.30],
-      [0,S*0.40],[-S*0.14,S*0.30],[-S*0.34,S*0.34],[-S*0.30,S*0.18],
-    ]);
-    const grad = g.createLinearGradient(0,-S*0.46,0,S*0.4);
-    grad.addColorStop(0,pal.top); grad.addColorStop(0.5,pal.mid); grad.addColorStop(1,pal.bot);
-    g.fillStyle = grad; g.fill();
-    g.lineWidth = S*0.022; g.strokeStyle = pal.stroke; g.stroke();
-    noglow(g);
-    // wing accents
-    g.fillStyle = pal.accent;
-    poly(g, [[-S*0.30,S*0.18],[-S*0.17,0],[-S*0.15,S*0.26]]); g.fill();
-    poly(g, [[ S*0.30,S*0.18],[ S*0.17,0],[ S*0.15,S*0.26]]); g.fill();
-    // cockpit
-    g.beginPath(); g.arc(0,-S*0.12,S*0.10,0,TAU); g.fillStyle='#0b1024'; g.fill();
-    g.lineWidth=S*0.018; g.strokeStyle=pal.canopy; g.stroke();
-    g.beginPath(); g.arc(-S*0.03,-S*0.15,S*0.04,0,TAU); g.fillStyle='rgba(255,255,255,.85)'; g.fill();
-    // engine nozzles
-    g.fillStyle='#ffcf3a';
-    roundRect(g,-S*0.13,S*0.34,S*0.07,S*0.10,S*0.02); g.fill();
-    roundRect(g, S*0.06,S*0.34,S*0.07,S*0.10,S*0.02); g.fill();
-  };
+// shared finishing touches so every pilot ship reads as the same family
+function hullFill(g, S, pal, lo, hi) {       // gradient body fill for the current path
+  const grad = g.createLinearGradient(0, lo, 0, hi);
+  grad.addColorStop(0, pal.top); grad.addColorStop(0.5, pal.mid); grad.addColorStop(1, pal.bot);
+  g.fillStyle = grad; g.fill();
+  g.lineWidth = S*0.022; g.strokeStyle = pal.stroke; g.stroke();
+}
+function cockpit(g, S, pal, cy=-S*0.12, rr=S*0.10) {
+  g.beginPath(); g.arc(0, cy, rr, 0, TAU); g.fillStyle='#0b1024'; g.fill();
+  g.lineWidth=S*0.018; g.strokeStyle=pal.canopy; g.stroke();
+  g.beginPath(); g.arc(-rr*0.32, cy-rr*0.32, rr*0.42, 0, TAU); g.fillStyle='rgba(255,255,255,.85)'; g.fill();
+}
+function engines(g, S, xs, y=S*0.34, w=S*0.07, h=S*0.10) {
+  g.fillStyle='#ffcf3a';
+  xs.forEach(x => { roundRect(g, x-w/2, y, w, h, S*0.02); g.fill(); });
+}
+
+// 1) Vanguard — balanced interceptor: slim fuselage + broad swept delta wings
+function drawVanguard(g, S) {
+  const p = SHIP_PALS.player;
+  glow(g, p.glow, S, 0.08); g.fillStyle = p.accent;
+  poly(g, [[-S*0.05,-S*0.04],[-S*0.42,S*0.22],[-S*0.24,S*0.31],[-S*0.05,S*0.20]]); g.fill();
+  poly(g, [[ S*0.05,-S*0.04],[ S*0.42,S*0.22],[ S*0.24,S*0.31],[ S*0.05,S*0.20]]); g.fill();
+  noglow(g);
+  glow(g, p.glow, S, 0.11);
+  poly(g, [[0,-S*0.46],[S*0.13,-S*0.06],[S*0.11,S*0.28],[0,S*0.40],[-S*0.11,S*0.28],[-S*0.13,-S*0.06]]);
+  hullFill(g, S, p, -S*0.46, S*0.40); noglow(g);
+  cockpit(g, S, p, -S*0.12, S*0.095);
+  engines(g, S, [-S*0.06, S*0.06]);
+}
+
+// 2) Reaper — glass cannon: needle dagger with forward-swept scythe blades
+function drawReaper(g, S) {
+  const p = SHIP_PALS.ship_reaper;
+  glow(g, p.glow, S, 0.09); g.fillStyle = p.accent;
+  poly(g, [[-S*0.07,S*0.04],[-S*0.47,-S*0.18],[-S*0.33,-S*0.30],[-S*0.10,-S*0.04]]); g.fill();
+  poly(g, [[ S*0.07,S*0.04],[ S*0.47,-S*0.18],[ S*0.33,-S*0.30],[ S*0.10,-S*0.04]]); g.fill();
+  noglow(g);
+  glow(g, p.glow, S, 0.12);
+  poly(g, [[0,-S*0.48],[S*0.08,-S*0.10],[S*0.11,S*0.26],[0,S*0.42],[-S*0.11,S*0.26],[-S*0.08,-S*0.10]]);
+  hullFill(g, S, p, -S*0.48, S*0.42); noglow(g);
+  cockpit(g, S, p, -S*0.18, S*0.07);
+  engines(g, S, [0], S*0.34, S*0.10, S*0.13);
+}
+
+// 3) Bastion — fortress: broad armored hex hull with heavy shoulder plates
+function drawBastion(g, S) {
+  const p = SHIP_PALS.ship_bastion;
+  glow(g, p.glow, S, 0.08); g.fillStyle = p.accent;
+  roundRect(g, -S*0.47, -S*0.08, S*0.16, S*0.38, S*0.05); g.fill();
+  roundRect(g,  S*0.31, -S*0.08, S*0.16, S*0.38, S*0.05); g.fill();
+  noglow(g);
+  glow(g, p.glow, S, 0.11);
+  poly(g, [[0,-S*0.42],[S*0.30,-S*0.20],[S*0.34,S*0.22],[0,S*0.40],[-S*0.34,S*0.22],[-S*0.30,-S*0.20]]);
+  hullFill(g, S, p, -S*0.42, S*0.40);
+  g.lineWidth=S*0.028; g.strokeStyle=p.stroke; g.stroke();
+  noglow(g);
+  g.fillStyle = p.bot; roundRect(g, -S*0.22, -S*0.30, S*0.44, S*0.13, S*0.04); g.fill();
+  cockpit(g, S, p, -S*0.02, S*0.115);
+  engines(g, S, [-S*0.15, S*0.15], S*0.34, S*0.10, S*0.10);
+}
+
+// 4) Specter — assassin: thin swept-back arrow / flying-wing, minimal hull
+function drawSpecter(g, S) {
+  const p = SHIP_PALS.ship_specter;
+  glow(g, p.glow, S, 0.10);
+  poly(g, [[0,-S*0.48],[S*0.40,S*0.30],[S*0.13,S*0.17],[0,S*0.36],[-S*0.13,S*0.17],[-S*0.40,S*0.30]]);
+  hullFill(g, S, p, -S*0.48, S*0.36); noglow(g);
+  g.fillStyle = p.accent;
+  poly(g, [[0,-S*0.40],[S*0.05,S*0.08],[0,S*0.22],[-S*0.05,S*0.08]]); g.fill();
+  cockpit(g, S, p, -S*0.20, S*0.065);
+  engines(g, S, [-S*0.05, S*0.05], S*0.26, S*0.055, S*0.10);
+}
+
+// 5) Sovereign — flagship: regal hull crowned with prongs, ornate wings, core jewel
+function drawSovereign(g, S) {
+  const p = SHIP_PALS.ship_sovereign;
+  glow(g, p.glow, S, 0.08); g.fillStyle = p.accent;
+  poly(g, [[-S*0.08,0],[-S*0.45,S*0.08],[-S*0.40,S*0.26],[-S*0.18,S*0.30],[-S*0.08,S*0.18]]); g.fill();
+  poly(g, [[ S*0.08,0],[ S*0.45,S*0.08],[ S*0.40,S*0.26],[ S*0.18,S*0.30],[ S*0.08,S*0.18]]); g.fill();
+  noglow(g);
+  glow(g, p.glow, S, 0.12);
+  poly(g, [[0,-S*0.30],[S*0.16,-S*0.10],[S*0.14,S*0.28],[0,S*0.42],[-S*0.14,S*0.28],[-S*0.16,-S*0.10]]);
+  hullFill(g, S, p, -S*0.30, S*0.42);
+  g.lineWidth=S*0.024; g.strokeStyle=p.stroke; g.stroke();
+  noglow(g);
+  // crown prongs at the nose
+  g.fillStyle = p.top;
+  poly(g, [[0,-S*0.50],[S*0.055,-S*0.28],[-S*0.055,-S*0.28]]); g.fill();
+  poly(g, [[-S*0.17,-S*0.36],[-S*0.10,-S*0.20],[-S*0.20,-S*0.22]]); g.fill();
+  poly(g, [[ S*0.17,-S*0.36],[ S*0.10,-S*0.20],[ S*0.20,-S*0.22]]); g.fill();
+  // core jewel
+  glow(g, p.accent, S, 0.10); g.fillStyle = p.accent;
+  g.beginPath(); g.arc(0, S*0.05, S*0.06, 0, TAU); g.fill(); noglow(g);
+  cockpit(g, S, p, -S*0.10, S*0.06);
+  engines(g, S, [-S*0.11, S*0.11], S*0.36, S*0.08, S*0.10);
 }
 
 function drawGrunt(g, S) {
@@ -398,11 +468,11 @@ function drawULeech(g, S) {            // green draining organism — wavy body,
 // ---- build atlas ------------------------------------------------------
 const cache = {}, masks = {};
 const DEFS = [
-  ['player', 128, shipDrawer(SHIP_PALS.player)],
-  ['ship_reaper', 128, shipDrawer(SHIP_PALS.ship_reaper)],
-  ['ship_bastion', 128, shipDrawer(SHIP_PALS.ship_bastion)],
-  ['ship_specter', 128, shipDrawer(SHIP_PALS.ship_specter)],
-  ['ship_sovereign', 128, shipDrawer(SHIP_PALS.ship_sovereign)],
+  ['player', 128, drawVanguard],
+  ['ship_reaper', 128, drawReaper],
+  ['ship_bastion', 132, drawBastion],
+  ['ship_specter', 128, drawSpecter],
+  ['ship_sovereign', 132, drawSovereign],
   ['grunt', 128, drawGrunt], ['swarm', 128, drawSwarm],
   ['tank', 128, drawTank], ['shooter', 128, drawShooter], ['boss', 200, drawBoss],
   ['dasher', 128, drawDasher], ['brute', 150, drawBrute], ['bomber', 128, drawBomber],

@@ -209,16 +209,16 @@ const RAR_LABEL = { common:'Common', rare:'Rare', epic:'Epic', legend:'Legendary
 // Unlockable ships = the "character roster" retention layer every top
 // survivors-like has. Each flies differently: own starting weapon + stat trade-offs.
 const SHIPS = {
-  vanguard:  { name:'Vanguard',  sprite:'player',         weapon:'blaster', cost:0,    cur:null,
+  vanguard:  { name:'Vanguard',  sprite:'player',         weapon:'blaster', cost:0,    cur:null,  role:'All-Rounder',
                desc:'Balanced strike craft. Where every legend begins.', mods:{} },
-  reaper:    { name:'Reaper',    sprite:'ship_reaper',    weapon:'spread',  cost:800,  cur:'coins',
-               desc:'Glass cannon. +15% damage, −20% hull.', mods:{ dmg:0.15, hp:-0.20 } },
-  bastion:   { name:'Bastion',   sprite:'ship_bastion',   weapon:'orbit',   cost:2500, cur:'coins',
-               desc:'Fortress hull. +40% HP, +1 HP/s regen, −12% speed.', mods:{ hp:0.40, regen:1, speed:-0.12 } },
-  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:80,   cur:'gems',
-               desc:'Phase fighter. +15% speed, +10% crit, −10% hull.', mods:{ speed:0.15, crit:0.10, hp:-0.10 } },
-  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:150,  cur:'gems',
-               desc:'Flagship. +10% damage, fire rate, hull & speed, +10% XP.', mods:{ dmg:0.10, fire:0.10, hp:0.10, speed:0.10, xp:0.10 } },
+  reaper:    { name:'Reaper',    sprite:'ship_reaper',    weapon:'spread',  cost:800,  cur:'coins', role:'Glass Cannon',
+               desc:'Hits like a truck, folds like paper — pure aggression.', mods:{ dmg:0.15, hp:-0.20 } },
+  bastion:   { name:'Bastion',   sprite:'ship_bastion',   weapon:'orbit',   cost:2500, cur:'coins', role:'Fortress',
+               desc:'A walking wall. Outlasts anything, in no hurry to do it.', mods:{ hp:0.40, regen:1, speed:-0.12 } },
+  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:80,   cur:'gems', role:'Assassin',
+               desc:'Fast, surgical, deadly on the crit — but fragile.', mods:{ speed:0.15, crit:0.10, hp:-0.10 } },
+  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:150,  cur:'gems', role:'Flagship',
+               desc:'The complete package — strong at everything, weak at nothing.', mods:{ dmg:0.10, fire:0.10, hp:0.10, speed:0.10, xp:0.10 } },
 };
 if (!SHIPS[save.ship] || !save.ships.includes(save.ship)) save.ship = 'vanguard';
 
@@ -1643,6 +1643,18 @@ function adGemsLeft() {
 }
 
 // ---- hangar (pilot ships)
+const SHIP_MOD_LABELS = { dmg:'DMG', hp:'HULL', fire:'FIRE RATE', speed:'SPEED', crit:'CRIT', xp:'XP', regen:'REGEN' };
+function shipModChips(mods) {
+  const chips = [];
+  for (const k in mods) {
+    const v = mods[k];
+    if (k === 'regen') { chips.push(`<span class="ship-tag pos">+${v} HP/s</span>`); continue; }
+    const pct = Math.round(v * 100);
+    chips.push(`<span class="ship-tag ${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${pct}% ${SHIP_MOD_LABELS[k] || k.toUpperCase()}</span>`);
+  }
+  if (!chips.length) chips.push('<span class="ship-tag neutral">No trade-offs</span>');
+  return `<div class="ship-tags">${chips.join('')}</div>`;
+}
 function renderHangar() {
   refreshWallet();
   const list = $('shipList'); list.innerHTML = '';
@@ -1652,8 +1664,13 @@ function renderHangar() {
     const btn = sel ? '<button disabled>EQUIPPED</button>'
       : owned ? '<button>EQUIP</button>'
       : `<button class="${d.cur==='gems'?'gemcost':''}">${ico(d.cur==='gems'?'gem':'coin',14)} ${fmt(d.cost)}</button>`;
-    el.innerHTML = `<canvas class="ship-cv" width="112" height="112" data-ship="${key}"></canvas>
-      <div class="info"><h4>${d.name} <span class="lvltag">${WEAPONS[d.weapon].name}</span></h4><p>${d.desc}</p></div>${btn}`;
+    el.innerHTML = `<canvas class="ship-cv" width="128" height="128" data-ship="${key}"></canvas>
+      <div class="info">
+        <h4>${d.name} <span class="ship-role">${d.role}</span></h4>
+        <p class="ship-wpn">${ico('rocket',12)} ${WEAPONS[d.weapon].name}</p>
+        <p>${d.desc}</p>
+        ${shipModChips(d.mods)}
+      </div>${btn}`;
     const b = el.querySelector('button');
     if (!sel) b.onclick = () => {
       if (!owned) {

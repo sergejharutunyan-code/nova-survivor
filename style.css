@@ -12,7 +12,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt);tou
   font-family:'Inter','SF Pro Display','Segoe UI Variable','Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
 #app{position:fixed;inset:0;overflow:hidden;}
-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;background:#05060f;}
+/* the live game/starfield canvas fills the shell; scoped to #game so it never
+   leaks absolute positioning onto inline UI canvases (e.g. hangar ship previews) */
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;background:#05060f;}
 .hidden{display:none!important;}
 
 /* cinematic vignette over the whole shell (the canvas paints the live starfield) */
@@ -34,11 +36,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;background
 .ic-wrap,.i{display:inline-flex;align-items:center;justify-content:center;}
 
 /* ---------- screens ---------- */
-.screen{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;
+.screen{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:safe center;
   gap:18px;padding:26px;text-align:center;}
 .screen{animation:screenIn .34s var(--ease);}
 .overlay{background:linear-gradient(180deg, rgba(8,11,30,.62), rgba(4,5,14,.82));
-  backdrop-filter:blur(18px) saturate(1.18);-webkit-backdrop-filter:blur(18px) saturate(1.18);overflow-y:auto;}
+  backdrop-filter:blur(18px) saturate(1.18);-webkit-backdrop-filter:blur(18px) saturate(1.18);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 #menu{background:transparent;}
 @keyframes screenIn{from{opacity:0;transform:translateY(10px) scale(.985);}to{opacity:1;transform:none;}}
 
@@ -257,7 +260,7 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
 .comp-row.c-weapon{border-left-color:var(--green);} .comp-row.c-weapon .tag{color:var(--green);}
 .empty-hint{color:var(--dim);font-size:13px;line-height:1.6;max-width:540px;text-align:center;padding:12px;}
 
-#menu{overflow-y:auto;}
+#menu{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 #stats, #goals{z-index:30;}
 #gachaResult{z-index:45;}
 
@@ -328,10 +331,21 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
 .ws-btn:active{transform:scale(.9);}
 
 /* ---------- hangar ---------- */
-.ship-cv{width:56px;height:56px;flex:0 0 auto;border-radius:13px;
-  background:radial-gradient(circle at 50% 30%, rgba(255,255,255,.09), rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.07);}
+.ship-cv{width:66px;height:66px;flex:0 0 auto;display:block;position:relative;border-radius:15px;
+  background:radial-gradient(circle at 50% 32%, rgba(255,255,255,.11), rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.09);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
 .shop-item.selected-ship{border-color:rgba(57,227,255,.55);box-shadow:0 0 22px rgba(57,227,255,.18), inset 0 1px 0 rgba(255,255,255,.05);}
+.shop-item.selected-ship .ship-cv{border-color:rgba(57,227,255,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 16px rgba(57,227,255,.25);}
 #hangar .wallet{display:flex;gap:8px;}
+/* hangar ship cards */
+.ship-role{font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#c8b6ff;
+  background:rgba(154,120,255,.16);padding:2px 8px;border-radius:7px;border:1px solid rgba(154,120,255,.28);}
+.ship-wpn{font-size:11.5px;color:var(--cyan);font-weight:700;display:inline-flex;align-items:center;gap:5px;margin:3px 0;opacity:.95;}
+.ship-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
+.ship-tag{font-size:10.5px;font-weight:800;letter-spacing:.2px;padding:2px 7px;border-radius:7px;border:1px solid transparent;font-variant-numeric:tabular-nums;}
+.ship-tag.pos{color:var(--green);background:rgba(63,227,154,.13);border-color:rgba(63,227,154,.26);}
+.ship-tag.neg{color:#ff8a9c;background:rgba(255,93,119,.13);border-color:rgba(255,93,119,.26);}
+.ship-tag.neutral{color:var(--dim);background:rgba(150,170,255,.10);border-color:rgba(150,170,255,.2);}
 
 /* ---------- daily login ---------- */
 .daily-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;width:min(430px,92vw);}
