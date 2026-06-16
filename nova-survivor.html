@@ -1483,7 +1483,7 @@ const WEAPONS = {
              cd:0.55, dmg:12, speed:520, pierce:0, color:'#3df0ff', max:7, normal:true,
              evolve:{ name:'Astral Railstorm', stat:'proj', statName:'Multishot', dmgMul:1.5,
                       desc:'Bolts become astral lances that pierce through everything, forever.' } },
-  spread:  { name:'Scatter Cannon', icon:'scatter', desc:'Sprays a wide cone of pellets in front of you. Crowd shredder.',
+  spread:  { name:'Scatter Cannon', icon:'scatter', desc:'Point-blank shotgun — a wide spray of pellets that knocks enemies back. Crowd shredder.',
              cd:0.95, dmg:7, speed:460, pierce:0, color:'#ffcf3a', max:7, normal:true,
              evolve:{ name:'Supernova Burst', stat:'dmg', statName:'Amplify', dmgMul:1.6,
                       desc:'Every pellet detonates on impact, blasting everything nearby.' } },
@@ -1938,7 +1938,7 @@ function fireBullet(x, y, ang, def, dmgBase, extra={}) {
     x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
     dmg, crit, r: extra.r||6, pierce: extra.pierce||0, life: extra.life||1.6,
     color: def.color, homing: extra.homing||false, emoji: extra.emoji,
-    blast: extra.blast||0,
+    blast: extra.blast||0, knock: extra.knock || 0.15,
   });
 }
 function updateWeapons(dt) {
@@ -1984,17 +1984,18 @@ function fireWeapon(w, def, p) {
         const off = (i - (count-1)/2) * step;
         // evolved: lances pierce everything and fly faster
         fireBullet(p.x, p.y, aim+off, def, ndmg,
-          { pierce: w.evolved ? 999 : Math.floor((lvl-1)/3), r: w.evolved?8:6, life: 1.4*p.rangeMult, speedMul: w.evolved?1.3:1 });
+          { pierce: w.evolved ? 999 : Math.floor((lvl-1)/3), r: w.evolved?8:6, life: firingRange(p)/def.speed, speedMul: w.evolved?1.3:1 });
       }
       SFX.shoot(); break;
     }
-    case 'spread': {                                // wide cone in front
-      const pellets = projCount(w, p);
-      const arc = 0.95;
+    case 'spread': {                                // shotgun: a wide, jittery spray with real punch
+      const pellets = projCount(w, p) + 2;          // always a thicker spread than the blaster's fan
+      const arc = 1.2;                               // wider cone than the blaster
       for (let i = 0; i < pellets; i++) {
-        const off = pellets > 1 ? (i/(pellets-1) - 0.5) * arc : 0;
-        // evolved: pellets detonate on impact
-        fireBullet(p.x, p.y, p.face+off, def, ndmg, { r:5, life:0.75*p.rangeMult, blast: w.evolved?70:0 });
+        const base = pellets > 1 ? (i/(pellets-1) - 0.5) * arc : 0;
+        const off = base + rand(-0.06, 0.06);        // organic scatter, not a neat fan
+        // shares the blaster's range (the ring); pellets knock enemies back
+        fireBullet(p.x, p.y, p.face+off, def, ndmg, { r:5, life: firingRange(p)/def.speed, blast: w.evolved?70:0, knock:0.32 });
       }
       SFX.shoot(); break;
     }
@@ -2023,11 +2024,14 @@ function fireWeapon(w, def, p) {
     }
     case 'laser': {
       // evolved: Prism Array lances the 3 nearest targets at once
-      const targets = w.evolved ? nearestEnemies(p.x, p.y, 3) : [nearestEnemy(p.x, p.y)].filter(Boolean);
+      const lr = firingRange(p) * 1.5;               // drastically shorter than the old 1200 (still reaches past the guns)
+      const targets = w.evolved
+        ? nearestEnemies(p.x, p.y, 3).filter(e => dist2(p.x, p.y, e.x, e.y) <= lr*lr)
+        : [nearestEnemy(p.x, p.y, lr)].filter(Boolean);
       if (!targets.length) { w._cd = 0.2; break; }
       for (const target of targets) {
         const ang = Math.atan2(target.y-p.y, target.x-p.x);
-        const len = 1200, ex = p.x+Math.cos(ang)*len, ey = p.y+Math.sin(ang)*len;
+        const len = lr, ex = p.x+Math.cos(ang)*len, ey = p.y+Math.sin(ang)*len;
         G.beams.push({ x1:p.x, y1:p.y, x2:ex, y2:ey, life:0.12, color:def.color });
         const thick = 16 + lvl*3;
         for (const e of G.enemies) {
@@ -2325,7 +2329,7 @@ function update(dt) {
     for (const e of G.enemies) {
       if (e.dead) continue;
       if (dist2(b.x,b.y,e.x,e.y) < (b.r+e.r)*(b.r+e.r)) {
-        const kx = b.vx*0.15, ky = b.vy*0.15;
+        const km = b.knock || 0.15, kx = b.vx*km, ky = b.vy*km;
         dealDamage(e, b.dmg, kx, ky, b.crit);
         // evolved explosive rounds: detonate on first impact, splashing 60% damage
         if (b.blast) {
