@@ -215,9 +215,9 @@ const SHIPS = {
                desc:'Hits like a truck, folds like paper — pure aggression.', mods:{ dmg:0.15, hp:-0.20 } },
   bastion:   { name:'Bastion',   sprite:'ship_bastion',   weapon:'orbit',   cost:2500, cur:'coins', role:'Fortress',
                desc:'A walking wall. Outlasts anything, in no hurry to do it.', mods:{ hp:0.40, regen:1, speed:-0.12 } },
-  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:400,  cur:'gems', role:'Assassin',
+  specter:   { name:'Specter',   sprite:'ship_specter',   weapon:'missile', cost:800,  cur:'gems', role:'Assassin',
                desc:'Fast, surgical, deadly on the crit — but fragile.', mods:{ speed:0.15, crit:0.10, hp:-0.10 } },
-  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:750,  cur:'gems', role:'Flagship',
+  sovereign: { name:'Sovereign', sprite:'ship_sovereign', weapon:'laser',   cost:1500, cur:'gems', role:'Flagship',
                desc:'The complete package — strong at everything, weak at nothing.', mods:{ dmg:0.10, fire:0.10, hp:0.10, speed:0.10, xp:0.10 } },
 };
 if (!SHIPS[save.ship] || !save.ships.includes(save.ship)) save.ship = 'vanguard';
@@ -1267,7 +1267,7 @@ function drawMiniBar(e, ex, ey) {
   ctx.fillStyle='#ff8a5b'; ctx.fillRect(x,y,w*clamp(e.hp/e.maxHp,0,1),h);
 }
 // world radius your shots reach (blaster is the reference gun)
-function firingRange(p) { return WEAPONS.blaster.speed * 1.4 * p.rangeMult; }
+function firingRange(p) { return WEAPONS.blaster.speed * 0.5 * p.rangeMult; }   // short to start; range upgrades visibly widen it
 function drawGrid(ox, oy) {
   const s = 60, Z = G.zoom;
   const padX = (W/2)*(1/Z - 1) + s, padY = (H/2)*(1/Z - 1) + s;   // extra area revealed by zoom-out
@@ -1504,18 +1504,34 @@ const META_DEFS = [
   { key:'greed',    icon:'coins',       name:'Greed',     desc:'+6% coin gain / lvl',      base:45, step:1.26 },
 ];
 function metaCost(d){ return Math.floor(d.base * Math.pow(d.step, save.meta[d.key])); }
+let metaBuyQty = 1;                                    // ×1 / ×10 / ×100 bulk-buy amount
+function metaCostN(d, n) {                              // total coins to buy the next n levels
+  let lvl = save.meta[d.key], total = 0;
+  for (let i = 0; i < n; i++) total += Math.floor(d.base * Math.pow(d.step, lvl + i));
+  return total;
+}
+function buyMetaLevels(d, n) {                          // buy up to n levels, as many as affordable
+  let bought = 0;
+  for (let i = 0; i < n; i++) { const c = metaCost(d); if (save.coins < c) break; save.coins -= c; save.meta[d.key]++; bought++; }
+  if (!bought) { toast('Not enough '+ico('coin',13)); return; }
+  persist(); refreshWallet(); renderMeta(); SFX.buy();
+  if (n > 1) toast(d.name+' +'+bought+' lvl'+(bought>1?'s':''));
+}
 function renderMeta() {
   const list = $('metaList'); list.innerHTML = '';
+  const qsel = $('metaQty');
+  if (qsel) {
+    qsel.innerHTML = [1,10,100].map(n => `<button class="qty-btn${metaBuyQty===n?' active':''}" data-q="${n}">×${n}</button>`).join('');
+    qsel.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { metaBuyQty = +b.dataset.q; renderMeta(); });
+  }
+  const n = metaBuyQty;
   for (const d of META_DEFS) {
-    const lvl = save.meta[d.key], cost = metaCost(d), can = save.coins >= cost;
+    const lvl = save.meta[d.key], costN = metaCostN(d, n), can = save.coins >= metaCost(d);
     const el = document.createElement('div'); el.className='shop-item';
     el.innerHTML = `<div class="ic">${ico(d.icon,26)}</div>
       <div class="info"><h4>${d.name} <span class="lvltag">Lv ${lvl}</span></h4><p>${d.desc}</p></div>
-      <button ${can?'':'disabled'}>${ico('coin',14)} ${fmt(cost)}</button>`;
-    el.querySelector('button').onclick = () => {
-      if (save.coins < cost) { toast('Not enough '+ico('coin',13)); return; }
-      save.coins -= cost; save.meta[d.key]++; persist(); refreshWallet(); renderMeta(); SFX.buy();
-    };
+      <button ${can?'':'disabled'}>${ico('coin',14)} ${fmt(costN)}${n>1?` <span class="cost">×${n}</span>`:''}</button>`;
+    el.querySelector('button').onclick = () => buyMetaLevels(d, n);
     list.appendChild(el);
   }
 }
@@ -1569,11 +1585,11 @@ function cycleStartWave(dir) {
 }
 
 const P2W_DEFS = [
-  { key:'coinDoubler', icon:'coin', name:'×2 Coins — Forever', desc:'Permanently DOUBLE all coins earned. The classic.', cost:50,  once:true },
-  { key:'megaDmg',     icon:'skull', name:'Mega Damage +50%',   desc:'Stacks. Each tier adds +50% base damage to every run.', cost:40, max:5 },
-  { key:'guardian',    icon:'shield', name:'Guardian Angel',     desc:'Auto-revive once per run, free. Never lose to one mistake.', cost:60, once:true },
-  { key:'arsenal',     icon:'medal', name:'Starting Arsenal',   desc:'Begin every run at Level 5 with a bonus weapon equipped.', cost:80, once:true },
-  { key:'vip',         icon:'crown', name:'VIP Pass',           desc:'+20% to ALL stats forever, +20% coins, +20% XP. Whale tier.', cost:120, once:true },
+  { key:'coinDoubler', icon:'coin', name:'×2 Coins — Forever', desc:'Permanently DOUBLE all coins earned. The classic.', cost:100,  once:true },
+  { key:'megaDmg',     icon:'skull', name:'Mega Damage +50%',   desc:'Stacks. Each tier adds +50% base damage to every run.', cost:80, max:5 },
+  { key:'guardian',    icon:'shield', name:'Guardian Angel',     desc:'Auto-revive once per run, free. Never lose to one mistake.', cost:120, once:true },
+  { key:'arsenal',     icon:'medal', name:'Starting Arsenal',   desc:'Begin every run at Level 5 with a bonus weapon equipped.', cost:160, once:true },
+  { key:'vip',         icon:'crown', name:'VIP Pass',           desc:'+20% to ALL stats forever, +20% coins, +20% XP. Whale tier.', cost:240, once:true },
 ];
 function renderP2W() {
   const list = $('p2wList'); list.innerHTML = '';
@@ -1795,6 +1811,25 @@ function renderStats(mode='base') {
     ? comps.map(([ic,nm,tag,cls]) =>
         `<div class="comp-row c-${cls}"><span class="ic">${ico(ic,18)}</span><span class="nm">${nm}</span><span class="tag">${tag}</span></div>`).join('')
     : `<p class="empty-hint">No permanent upgrades yet. Earn coins in runs for <b>Upgrades</b>, and spend gems in the <b>Premium Store</b> — everything you buy shows up here.</p>`;
+
+  // ---- records / high scores (lifetime personal bests) ----
+  const L = save.lifeStats || {};
+  const recGrid = $('recordGrid');
+  if (recGrid) {
+    const recs = [
+      ['fastforward','Best Wave',   L.bestWave||0],
+      ['clock','Best Survival',     mmss(L.bestTime||0)],
+      ['power','Best Level',        L.bestLevel||1],
+      ['gun','Most Weapons',        L.bestWeapons||1],
+      ['skull','Total Kills',       fmt(L.kills||0)],
+      ['boss','Bosses Slain',       fmt(L.bosses||0)],
+      ['coin','Lifetime Coins',     fmt(L.coins||0)],
+      ['refresh','Runs Played',     fmt(L.runs||0)],
+    ];
+    recGrid.innerHTML = recs.map(([ic,l,v]) =>
+      `<div class="stat-card"><div class="ic">${ico(ic,22)}</div><div class="sc-meta"><span>${l}</span><b>${v}</b></div></div>`
+    ).join('');
+  }
 }
 
 // ---- gacha

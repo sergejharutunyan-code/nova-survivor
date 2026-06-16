@@ -127,7 +127,7 @@ Max the weapon's level, hold ≥1 stack of the catalyst, and the EVOLVE card app
 
 Five ships in the **Hangar**, each with its own starting weapon and stat trade-offs:
 Vanguard (free, balanced) · Reaper (800 🪙, glass cannon) · Bastion (2,500 🪙, tank) ·
-Specter (80 💎, fast crit) · Sovereign (150 💎, +10% everything).
+Specter (800 💎, fast crit) · Sovereign (1,500 💎, +10% everything).
 
 ### 📈 Why these features (market notes, mid-2026)
 
