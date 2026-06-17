@@ -1721,16 +1721,21 @@ function spawnWave(dt) {
   if (G.bossWave) budget = Math.ceil(budget*0.5);       // boss waves spawn fewer adds
   for (let i = 0; i < budget; i++) spawnEnemy(w);
 }
-// weighted pool — tougher enemies are introduced wave by wave and grow more common
+// Weighted spawn pool. Basics (grunt/swarm) dominate the opening and slowly thin out to a
+// floor (never zero). Specials are introduced ONE at a time on a complexity ramp — each enters
+// rare at its intro wave and grows more common with the wave — so early runs are almost all
+// fodder and late runs are mostly specials/elites with only a trickle of basics.
 function enemyTypeFor(w) {
-  const pool = [['grunt',10],['swarm',8]];
-  if (w >= 2)  pool.push(['tank',     4 + w*0.40]);
-  if (w >= 3)  pool.push(['dasher',   3 + w*0.50]);
-  if (w >= 4)  pool.push(['shooter',  3 + w*0.40]);
-  if (w >= 5)  pool.push(['splitter', 3 + w*0.50]);
-  if (w >= 7)  pool.push(['bomber',   3 + w*0.50]);
-  if (w >= 9)  pool.push(['healer',   2 + w*0.30]);
-  if (w >= 11) pool.push(['brute',    2 + w*0.50]);
+  const pool = [['grunt', Math.max(3, 14 - w*0.45)]];
+  if (w >= 2) pool.push(['swarm', Math.max(2, 9 - w*0.25)]);
+  const add = (type, intro, base, growth) => { if (w >= intro) pool.push([type, base + (w-intro)*growth]); };
+  add('tank',     4,  2,   0.45);   // slow bullet-sponge — "some enemies take more hits"
+  add('dasher',   6,  2,   0.50);   // telegraphed charge — dodging
+  add('shooter',  8,  2,   0.40);   // ranged fire — incoming bullets
+  add('splitter', 11, 2,   0.40);   // splits on death
+  add('bomber',   14, 2,   0.45);   // detonates on death
+  add('healer',   17, 1.5, 0.30);   // heals nearby — priority target
+  add('brute',    20, 1.5, 0.50);   // recurring elite mini-boss
   let total = 0; for (const e of pool) total += e[1];
   let r = Math.random()*total;
   for (const [type,wt] of pool) { r -= wt; if (r <= 0) return type; }
