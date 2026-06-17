@@ -279,6 +279,8 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
 .round-btn{transition:transform .12s var(--ease), box-shadow .2s;}
 .round-btn:hover{transform:scale(1.06);box-shadow:0 8px 22px rgba(0,0,0,.5);}
 .round-btn:active{transform:scale(.92);}
+/* live game-speed switch (sits left of the pause button) */
+.speed-btn{right:66px;width:auto;min-width:46px;padding:0 12px;font-weight:900;font-size:15px;font-variant-numeric:tabular-nums;color:var(--cyan);}
 .chip{transition:transform .15s var(--ease);}
 .wallet .chip:hover{transform:translateY(-1px);}
 

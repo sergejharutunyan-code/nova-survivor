@@ -1289,9 +1289,22 @@ function drawGrid(ox, oy) {
   ctx.stroke();
 }
 // ------------------------------------------------------------------ main loop
-// Gameplay runs at 1/3 speed by default; the premium "Game Speed" upgrade buys it back (Tier 2 = normal).
-const GAME_SPEED_BASE = 1/3;
-function gameSpeedMult() { return GAME_SPEED_BASE * (1 + (save.p2w.gameSpeed || 0)); }
+// Game-speed steps: the baseline plays as "×1"; each owned tier unlocks a faster step the player
+// can switch to live (×2, ×3, …). gameSpeedSet is the chosen step (defaults to the fastest owned).
+function curSpeedTier() {
+  const owned = save.p2w.gameSpeed || 0;
+  return clamp(save.gameSpeedSet == null ? owned : save.gameSpeedSet, 0, owned);
+}
+function gameSpeedMult() { return (1 + curSpeedTier()) / 3; }
+function updateSpeedBtn() {
+  const btn = $('speedBtn'); if (!btn) return;
+  if ((save.p2w.gameSpeed || 0) <= 0) { btn.classList.add('hidden'); return; }
+  btn.classList.remove('hidden'); btn.textContent = '×' + (curSpeedTier() + 1);
+}
+function cycleGameSpeed() {
+  const owned = save.p2w.gameSpeed || 0; if (owned <= 0) return;
+  save.gameSpeedSet = (curSpeedTier() + 1) % (owned + 1); persist(); updateSpeedBtn();
+}
 let last = performance.now();
 function frame(now) {
   let dt = (now - last) / 1000; last = now;
@@ -1326,7 +1339,7 @@ function startRun() {
   G.player = newPlayer();
   if (startWave > 1) applyWaveSkip(startWave);     // auto-leveled head start for skipped runs
   G.camX = G.player.x - W/2; G.camY = G.player.y - H/2;
-  hide('menu'); hide('gameover'); show('hud');
+  hide('menu'); hide('gameover'); show('hud'); updateSpeedBtn();
   // skip targets (5, 10, 15…) are boss waves — start the boss event instead of silently passing it
   if (isBossWave(startWave)) { G.bossWave = true; spawnBossEvent(); announceWave(startWave, true); }
   else announceWave(startWave, false);
@@ -1608,7 +1621,7 @@ function cycleStartWave(dir) {
 }
 
 const P2W_DEFS = [
-  { key:'gameSpeed',   icon:'fastforward', name:'Game Speed',         desc:'Gameplay runs at 1/3 speed by default. Each tier adds +1/3 — Tier 2 restores full normal speed, up to 1.7× at max.', cost:60, max:4 },
+  { key:'gameSpeed',   icon:'fastforward', name:'Game Speed',         desc:'Unlock faster game speeds. Tap the in-game speed button to switch between any speed you own (×1 up to ×5) at any time. Each tier costs far more than the last.', cost:60, step:3, max:4 },
   { key:'coinDoubler', icon:'coin', name:'×2 Coins — Forever', desc:'Permanently DOUBLE all coins earned. The classic.', cost:100,  once:true },
   { key:'megaDmg',     icon:'skull', name:'Mega Damage +50%',   desc:'Stacks. Each tier adds +50% base damage to every run.', cost:80, max:5 },
   { key:'guardian',    icon:'shield', name:'Guardian Angel',     desc:'Auto-revive once per run, free. Never lose to one mistake.', cost:120, once:true },
@@ -1620,15 +1633,18 @@ function renderP2W() {
   for (const d of P2W_DEFS) {
     const owned = save.p2w[d.key];
     const maxed = d.once ? owned>=1 : owned >= d.max;
+    const cost = Math.floor(d.cost * Math.pow(d.step||1, d.once ? 0 : owned));   // tiered defs can scale exponentially
     const tag = d.once ? (owned?'OWNED':'') : `Tier ${owned}/${d.max}`;
-    const can = !maxed && save.gems >= d.cost;
+    const can = !maxed && save.gems >= cost;
     const el = document.createElement('div'); el.className='shop-item';
     el.innerHTML = `<div class="ic">${ico(d.icon,26)}</div>
       <div class="info"><h4>${d.name} ${tag?`<span class="lvltag">${tag}</span>`:''}</h4><p>${d.desc}</p></div>
-      <button class="gemcost" ${maxed||!can?'disabled':''}>${maxed?(d.once?'OWNED':'MAX'):ico('gem',14)+' '+d.cost}</button>`;
+      <button class="gemcost" ${maxed||!can?'disabled':''}>${maxed?(d.once?'OWNED':'MAX'):ico('gem',14)+' '+cost}</button>`;
     if (!maxed) el.querySelector('button').onclick = () => {
-      if (save.gems < d.cost) { toast('Not enough '+ico('gem',13)+' — grab some below!'); return; }
-      save.gems -= d.cost; save.p2w[d.key]++; persist(); refreshWallet(); renderP2W(); SFX.buy();
+      if (save.gems < cost) { toast('Not enough '+ico('gem',13)+' — grab some below!'); return; }
+      save.gems -= cost; save.p2w[d.key]++;
+      if (d.key === 'gameSpeed') { save.gameSpeedSet = save.p2w.gameSpeed; updateSpeedBtn(); }   // auto-select the new top speed
+      persist(); refreshWallet(); renderP2W(); SFX.buy();
       toast(d.name+' unlocked!');
     };
     list.appendChild(el);
@@ -2200,6 +2216,8 @@ $('waveDown') && ($('waveDown').onclick = () => cycleStartWave(-1));
 $('skipToggle') && ($('skipToggle').onchange = e => { save.skipOn = e.target.checked; persist(); renderWaveSelect(); });
 $('premiumBtn').onclick = () => { renderP2W(); renderIAP(); refreshWallet(); show('premiumshop'); };
 $('pauseBtn').onclick   = () => pauseGame();
+$('speedBtn') && ($('speedBtn').onclick = () => cycleGameSpeed());
+updateSpeedBtn();
 $('resumeBtn').onclick  = () => resumeGame();
 $('pauseStatsBtn').onclick = () => { renderStats('live'); show('stats'); };
 $('pauseGoalsBtn').onclick = () => { renderGoals(); show('goals'); };
