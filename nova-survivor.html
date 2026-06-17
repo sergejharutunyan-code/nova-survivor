@@ -1499,7 +1499,7 @@ const WEAPONS = {
              evolve:{ name:'Halo of Ruin', stat:'speed', statName:'Thrusters', dmgMul:2.0,
                       desc:'+3 golden blades on a wider, faster, far deadlier halo.' } },
   nova:    { name:'Nova Pulse', icon:'nova', desc:'Periodic shockwave damaging everything around you.',
-             cd:1.8, dmg:30, color:'#ff4d6d', max:7,
+             cd:2.2, dmg:30, color:'#ff4d6d', max:7,
              evolve:{ name:'Solar Flare', stat:'hp', statName:'Reinforce', dmgMul:1.7,
                       desc:'A wider shockwave that sets every enemy it touches ablaze.' } },
   laser:   { name:'Rail Beam', icon:'beam', desc:'Instant piercing beam through a whole line of enemies.',
@@ -1946,7 +1946,7 @@ function fireBullet(x, y, ang, def, dmgBase, extra={}) {
     x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
     dmg, crit, r: extra.r||6, pierce: extra.pierce||0, life: extra.life||1.6,
     color: def.color, homing: extra.homing||false, emoji: extra.emoji,
-    blast: extra.blast||0, knock: extra.knock || 0.15,
+    blast: extra.blast||0, knock: extra.knock || 0.15, twirl: extra.twirl || 0, spin: extra.spin || 0,
   });
 }
 function updateWeapons(dt) {
@@ -2007,13 +2007,20 @@ function fireWeapon(w, def, p) {
       }
       SFX.shoot(); break;
     }
-    case 'missile': {                               // fan out in front, then home
-      const n = projCount(w, p) + (w.evolved ? 2 : 0);
-      for (let i = 0; i < n; i++) {
-        const a = p.face + (i - (n-1)/2) * 0.22;
-        fireBullet(p.x, p.y, a, def, ndmg*1.1, { homing:true, r:7, life:2.4*p.rangeMult, pierce:1, emoji:'missile', blast: w.evolved?90:0 });
+    case 'missile': {                               // burst out to the sides & back, twirl, then hunt
+      const want = projCount(w, p) + (w.evolved ? 2 : 0);
+      const cap = 6 + w.level*2 + (w.evolved ? 6 : 0) + p.projBonus*2;   // limit how many linger at once
+      let active = 0; for (const b of G.bullets) if (b.homing && !b.dead) active++;
+      const launch = Math.max(0, Math.min(want, cap - active));
+      const arc = Math.PI * 1.5;                    // spread across the rear ~270° (sides + back, not straight ahead)
+      for (let i = 0; i < launch; i++) {
+        const a = (p.face + Math.PI) + (launch > 1 ? (i/(launch-1) - 0.5) * arc : 0) + rand(-0.1, 0.1);
+        const spin = (Math.random() < 0.5 ? -1 : 1) * rand(3.5, 5.5);   // twirl direction
+        fireBullet(p.x, p.y, a, def, ndmg*1.1,
+          { homing:true, r:7, life:3.8*p.rangeMult, pierce:1, emoji:'missile', blast: w.evolved?90:0, twirl: rand(0.5, 0.9), spin });
       }
-      SFX.shoot(); break;
+      if (launch > 0) SFX.shoot();
+      break;
     }
     case 'nova': {
       const radius = firingRange(p) * (w.evolved ? 1.4 : 1);   // base matches the blaster's range ring; Solar Flare is wider
@@ -2032,7 +2039,7 @@ function fireWeapon(w, def, p) {
     }
     case 'laser': {
       // evolved: Prism Array lances the 3 nearest targets at once
-      const lr = firingRange(p) * 1.5;               // drastically shorter than the old 1200 (still reaches past the guns)
+      const lr = firingRange(p) * 3;                 // Rail Beam reaches 3x the plasma range
       const targets = w.evolved
         ? nearestEnemies(p.x, p.y, 3).filter(e => dist2(p.x, p.y, e.x, e.y) <= lr*lr)
         : [nearestEnemy(p.x, p.y, lr)].filter(Boolean);
@@ -2322,14 +2329,21 @@ function update(dt) {
   // player bullets
   for (const b of G.bullets) {
     if (b.homing) {
-      const t = nearestEnemy(b.x, b.y, 360);
-      if (t) {
-        const want = Math.atan2(t.y-b.y, t.x-b.x);
-        const cur = Math.atan2(b.vy, b.vx);
-        let da = want - cur; while(da>Math.PI)da-=TAU; while(da<-Math.PI)da+=TAU;
-        const na = cur + clamp(da, -6*dt, 6*dt);
-        const sp = Math.hypot(b.vx,b.vy);
+      if (b.twirl > 0) {
+        b.twirl -= dt;                               // twirl/circle phase — lingers before hunting
+        const sp = Math.hypot(b.vx, b.vy);
+        const na = Math.atan2(b.vy, b.vx) + b.spin * dt;
         b.vx = Math.cos(na)*sp; b.vy = Math.sin(na)*sp;
+      } else {
+        const t = nearestEnemy(b.x, b.y, firingRange(p) * 3);   // finds targets at 3x plasma range
+        if (t) {
+          const want = Math.atan2(t.y-b.y, t.x-b.x);
+          const cur = Math.atan2(b.vy, b.vx);
+          let da = want - cur; while(da>Math.PI)da-=TAU; while(da<-Math.PI)da+=TAU;
+          const na = cur + clamp(da, -6*dt, 6*dt);
+          const sp = Math.hypot(b.vx,b.vy);
+          b.vx = Math.cos(na)*sp; b.vy = Math.sin(na)*sp;
+        }
       }
     }
     b.x += b.vx*dt; b.y += b.vy*dt; b.life -= dt;
