@@ -2079,7 +2079,7 @@ function updateOrbs(dt) {
   if (!w) { G.orbs.length = 0; return; }
   // evolved Halo of Ruin: +3 orbs, wider ring, faster spin, double damage
   const count = 2 + Math.floor(w.level*0.8) + (w.evolved ? 3 : 0);
-  const radius = firingRange(p) * (w.evolved ? 1.25 : 1);   // orbit at the blaster's range ring; Halo of Ruin is wider
+  const radius = firingRange(p) * 0.5 * (w.evolved ? 1.25 : 1);   // half the blaster's range; Halo of Ruin is wider
   if (G.orbs.length !== count) {
     G.orbs = Array.from({length:count}, (_,i)=>({ a:(i/count)*TAU }));
   }
