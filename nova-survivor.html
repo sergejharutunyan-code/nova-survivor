@@ -2016,7 +2016,7 @@ function fireWeapon(w, def, p) {
       SFX.shoot(); break;
     }
     case 'nova': {
-      const radius = (110 + lvl*22) * (w.evolved ? 1.4 : 1);
+      const radius = firingRange(p) * (w.evolved ? 1.4 : 1);   // base matches the blaster's range ring; Solar Flare is wider
       ring(p.x, p.y, radius, w.evolved ? '#ff8a5b' : def.color);
       for (const e of G.enemies) {
         if (e.dead) continue;
@@ -2079,7 +2079,7 @@ function updateOrbs(dt) {
   if (!w) { G.orbs.length = 0; return; }
   // evolved Halo of Ruin: +3 orbs, wider ring, faster spin, double damage
   const count = 2 + Math.floor(w.level*0.8) + (w.evolved ? 3 : 0);
-  const radius = 70 + w.level*6 + (w.evolved ? 40 : 0);
+  const radius = firingRange(p) * (w.evolved ? 1.25 : 1);   // orbit at the blaster's range ring; Halo of Ruin is wider
   if (G.orbs.length !== count) {
     G.orbs = Array.from({length:count}, (_,i)=>({ a:(i/count)*TAU }));
   }
