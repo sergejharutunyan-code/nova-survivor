@@ -233,7 +233,7 @@ const G = {
   wave: 1, waveT: 0, bossWave: false, bestWave: 1,
   spawnT: 0, bossesKilled: 0, bossesAlive: 0, bossEvent: 0, ultraIndex: 0,
   camX: 0, camY: 0, shake: 0, slowT: 0, flash: 0, zoom: 1,
-  revives: 0, pendingCards: [], pendingLevels: 0,
+  revives: 0, pendingCards: [], pendingLevels: 0, rerolls: 0,
 };
 
 // Derived starting stats from all permanent sources (meta + premium + relics + ship).
@@ -280,7 +280,7 @@ function newPlayer() {
   return player;
 }
 function getW(p, key) { return p.weapons.find(w => w.key === key); }
-function xpForLevel(lv) { return Math.floor(5 + (lv-1)*4 + Math.pow(lv,1.7)); }
+function xpForLevel(lv) { return Math.floor(6 + 4*(lv-1) + 5*Math.pow(1.16, lv-1)); }   // exponential: each level needs ~16% more than the last
 
 // ------------------------------------------------------------------ input (floating joystick + keyboard)
 const input = { active:false, sx:0, sy:0, cx:0, cy:0, kx:0, ky:0 };
@@ -1409,12 +1409,26 @@ function doRevive(free=false) {
 }
 
 // ---- level up
+const isFiller = (c) => c.kind === 'heal' || c.kind === 'coins';
+function rerollCost() { return 1 << Math.min(G.rerolls || 0, 8); }   // escalates each consecutive reroll: 1, 2, 4, 8…
+function updateRerollBtn() {
+  const btn = $('rerollBtn'); if (!btn) return;
+  const cost = rerollCost(), v = $('rerollCostVal'); if (v) v.textContent = cost;
+  btn.style.display = save.gems >= cost ? 'flex' : 'none';
+}
+function autoPickFiller() {
+  const p = G.player;
+  applyCard((p.hp < p.maxHp - 0.5) ? { kind:'heal' } : { kind:'coins' });
+}
 function openLevelUp() {
   G.state = 'levelup';
+  G.rerolls = 0;                                  // reroll cost resets every new level
   G.pendingCards = rollCards();
+  // everything maxed + opted in → silently auto-resolve filler-only level-ups
+  if (save.autoFiller && G.pendingCards.every(isFiller)) { autoPickFiller(); return; }
   renderCards();
   show('levelup'); hide('hud'); SFX.level();
-  $('rerollBtn').style.display = save.gems >= 1 ? 'flex' : 'none';
+  updateRerollBtn();
 }
 function rollCards() {
   const p = G.player, pool = [];
@@ -1471,6 +1485,12 @@ function renderCards() {
     el.innerHTML = `<div class="ic">${ico(icon,38)}</div><span class="lvl">${tag}</span><h3>${title}</h3><p>${desc}</p>`;
     el.onclick = () => applyCard(c);
     wrap.appendChild(el);
+  }
+  // offer the auto-pick toggle only when there's nothing left but filler cards
+  const row = $('autoFillerRow');
+  if (row) {
+    row.classList.toggle('hidden', !G.pendingCards.every(isFiller));
+    const cb = $('autoFiller'); if (cb) cb.checked = !!save.autoFiller;
   }
 }
 // pure mutation — no UI/SFX, so it can also drive the silent auto-build on wave-skip
@@ -2238,11 +2258,16 @@ $('pauseGoalsBtn').onclick = () => { renderGoals(); show('goals'); };
 // surrender counts as a DEFEAT (run is banked) instead of a cold quit
 $('quitBtn').onclick    = () => { gameOver(); };
 $('rerollBtn').onclick  = () => {
-  if (save.gems < 1) { toast('Not enough '+ico('gem',13)); return; }
-  save.gems--; persist(); refreshWallet();
+  const cost = rerollCost();
+  if (save.gems < cost) { toast('Not enough '+ico('gem',13)); return; }
+  save.gems -= cost; G.rerolls = (G.rerolls||0) + 1; persist(); refreshWallet();
   G.pendingCards = rollCards(); renderCards();
-  $('rerollBtn').style.display = save.gems >= 1 ? 'flex' : 'none';
+  updateRerollBtn();
 };
+$('autoFiller') && ($('autoFiller').onchange = (e) => {
+  save.autoFiller = e.target.checked; persist();
+  if (save.autoFiller && G.state === 'levelup' && G.pendingCards.every(isFiller)) autoPickFiller();
+});
 $('reviveBtn').onclick  = () => doRevive(false);
 $('claimBtn').onclick   = () => { finalizeRun(); G.state='menu'; hide('gameover'); refreshWallet(); show('menu'); };
 $('pull1').onclick      = () => doPull(1, 10);
