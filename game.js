@@ -30,7 +30,7 @@ const DEFAULT_SAVE = {
   // wave progression: highest wave ever reached + the chosen / unlocked start wave
   maxWave: 1, skipMax: 1, startWave: 1, skipOn: true,
   // lifetime + best stats that feed quests
-  lifeStats: { kills:0, coins:0, bosses:0, runs:0, bestTime:0, bestLevel:0, bestWeapons:1, bestWave:0 },
+  lifeStats: { kills:0, coins:0, bosses:0, runs:0, bestTime:0, bestLevel:0, bestWeapons:1, bestWave:0, totalXp:0, wavesPlayed:0 },
   // per-field count of quests completed (chain progress)
   quests: { slayer:0, survivor:0, tycoon:0, ascend:0, boss:0, veteran:0, purist:0 },
   // progress toward the CURRENT active step, counted only since it became active
@@ -177,6 +177,7 @@ const STAT_UPS = [
   { key:'regen',  icon:'heartplus', title:'Nanobots', desc:'+0.8 HP/sec regen',   apply:p=>p.regen+=0.8,                                        max:8 },
   { key:'proj',   icon:'plus', title:'Multishot',   desc:'+1 projectile (all guns)', apply:p=>p.projBonus+=1,                                   max:5 },
   { key:'range',  icon:'range', title:'Targeting Array', desc:'+20% firing range', apply:p=>p.rangeMult+=0.20,                                   max:6 },
+  { key:'knock',  icon:'power', title:'Knockback',       desc:'+0.3 knockback force — shove enemies back', apply:p=>p.knockback+=0.3,             max:8 },
   { key:'magnet', icon:'magnet', title:'Magnet',     desc:'+45% pickup range',    apply:p=>p.pickupRange*=1.45,                                 max:5 },
   { key:'xp',     icon:'graph', title:'Brilliance',  desc:'+20% XP gain',         apply:p=>p.xpMult+=0.20,                                      max:8 },
   { key:'crit',   icon:'target', title:'Precision',  desc:'+6% crit chance',      apply:p=>p.crit=Math.min(1,p.crit+0.06),                      max:10 },
@@ -235,7 +236,7 @@ const G = {
   wave: 1, waveT: 0, bossWave: false, bestWave: 1,
   spawnT: 0, bossesKilled: 0, bossesAlive: 0, bossEvent: 0, ultraIndex: 0,
   camX: 0, camY: 0, shake: 0, slowT: 0, flash: 0, zoom: 1,
-  revives: 0, pendingCards: [], pendingLevels: 0, rerolls: 0, goldRush: 0, cleanRun: false, premiumUsed: false, skippedStart: false,
+  revives: 0, pendingCards: [], pendingLevels: 0, rerolls: 0, goldRush: 0, cleanRun: false, premiumUsed: false, skippedStart: false, runXp: 0, runWaves: 0,
 };
 
 // Derived starting stats from all permanent sources (meta + premium + relics + ship).
@@ -270,7 +271,7 @@ function newPlayer() {
     maxHp: s.maxHp, regen: s.regen,
     moveSpeed: s.moveSpeed, damageMult: s.damageMult, fireRateMult: s.fireRateMult,
     pickupRange: s.pickupRange, coinMult: s.coinMult, xpMult: s.xpMult,
-    crit: s.crit, critMult: s.critMult, projBonus: 0, projMult: 1, rangeMult: 1, statLvl: {},
+    crit: s.crit, critMult: s.critMult, projBonus: 0, projMult: 1, rangeMult: 1, knockback: 0.1, statLvl: {},
     level: 1, xp: 0, xpNext: xpForLevel(1),
     weapons: [{ key: s.weapon, level:1 }],
     invuln: 0, guardianUsed: false,
@@ -344,6 +345,7 @@ function updateWaves(dt) {
 }
 function advanceWave() {
   G.wave++; G.waveT = 0;
+  G.runWaves = (G.runWaves || 0) + 1;       // waves actually played this run
   if (G.wave > G.bestWave) G.bestWave = G.wave;
   if (isBossWave(G.wave)) { G.bossWave = true; spawnBossEvent(); announceWave(G.wave, true); }
   else                    announceWave(G.wave, false);
@@ -392,16 +394,16 @@ function enemyTypeFor(w) {
   return 'grunt';
 }
 const E_DEF = {
-  grunt:   { r:16, hp:22,   spd:62,  dmg:8,  xp:1, coin:0.18, color:'#b56bff' },
-  swarm:   { r:13, hp:11,   spd:104, dmg:6,  xp:1, coin:0.12, color:'#34e07a' },
-  tank:    { r:26, hp:90,   spd:40,  dmg:16, xp:3, coin:0.5,  color:'#ff8a5b' },
-  shooter: { r:18, hp:38,   spd:50,  dmg:10, xp:3, coin:0.5,  color:'#3df0ff', shoots:true },
-  dasher:  { r:15, hp:30,   spd:50,  dmg:16, xp:2, coin:0.3,  color:'#ff4d6d', dash:true },
-  splitter:{ r:22, hp:75,   spd:52,  dmg:12, xp:3, coin:0.5,  color:'#34e07a', splits:true },
-  bomber:  { r:18, hp:42,   spd:74,  dmg:9,  xp:3, coin:0.5,  color:'#ff8a5b', bomb:true },
-  healer:  { r:18, hp:64,   spd:44,  dmg:6,  xp:4, coin:0.7,  color:'#34e07a', heals:true },
-  brute:   { r:34, hp:300,  spd:33,  dmg:30, xp:8, coin:1.5,  color:'#ff4d6d', elite:true },
-  boss:    { r:54, hp:1400, spd:46,  dmg:28, xp:40,coin:18,   color:'#ff4d6d', boss:true },
+  grunt:   { r:16, hp:22,   spd:62,  dmg:8,  xp:1, coin:0.18, color:'#b56bff', mass:1 },
+  swarm:   { r:13, hp:11,   spd:104, dmg:6,  xp:1, coin:0.12, color:'#34e07a', mass:0.6 },
+  tank:    { r:26, hp:90,   spd:40,  dmg:16, xp:3, coin:0.5,  color:'#ff8a5b', mass:4, shoots:false },
+  shooter: { r:18, hp:38,   spd:50,  dmg:10, xp:3, coin:0.5,  color:'#3df0ff', shoots:true, mass:1.5 },
+  dasher:  { r:15, hp:30,   spd:50,  dmg:16, xp:2, coin:0.3,  color:'#ff4d6d', dash:true, mass:1.2 },
+  splitter:{ r:22, hp:75,   spd:52,  dmg:12, xp:3, coin:0.5,  color:'#34e07a', splits:true, mass:2.5 },
+  bomber:  { r:18, hp:42,   spd:74,  dmg:9,  xp:3, coin:0.5,  color:'#ff8a5b', bomb:true, mass:1.4 },
+  healer:  { r:18, hp:64,   spd:44,  dmg:6,  xp:4, coin:0.7,  color:'#34e07a', heals:true, mass:1.8 },
+  brute:   { r:34, hp:300,  spd:33,  dmg:30, xp:8, coin:1.5,  color:'#ff4d6d', elite:true, mass:8 },
+  boss:    { r:54, hp:1400, spd:46,  dmg:28, xp:40,coin:18,   color:'#ff4d6d', boss:true, mass:30 },
 };
 // HP scales EXPONENTIALLY per wave: trivial early, then runaway — you become
 // dependent on permanent + in-run upgrades to keep killing fast enough to survive.
@@ -422,7 +424,7 @@ function spawnEnemy(w, type) {
     hp: d.hp * hs, maxHp: d.hp * hs,
     spd: d.spd * (type==='boss'?1:rand(0.85,1.1)) * speedRamp,
     dmg: d.dmg * ds,
-    xp: d.xp, coin: d.coin, shoots: d.shoots, boss: d.boss, elite: d.elite,
+    xp: d.xp, coin: d.coin, mass: d.mass || 1, shoots: d.shoots, boss: d.boss, elite: d.elite,
     dash: d.dash, splits: d.splits, bomb: d.bomb, heals: d.heals,
     hitFlash:0, orbCD:0, novaCD:0, shootCD:rand(1,2.5), knock:{x:0,y:0}, frozen:0, hazCD:0,
     healCD:rand(2,3.5), dashState:'approach', dashCD:rand(1.5,3), dashT:0, dvx:0, dvy:0, isChild:false,
@@ -473,7 +475,7 @@ function spawnUltra(def, hs, angle) {
     y: G.player.y + Math.sin(angle)*range,
     hp: def.hp*hs*MEGA_HP, maxHp: def.hp*hs*MEGA_HP,
     spd: def.spd, dmg: def.dmg * dmgScale(G.wave) * MEGA_DMG,
-    xp:90, coin:30, boss:true,
+    xp:90, coin:30, mass:60, boss:true,
     hitFlash:0, knock:{x:0,y:0}, frozen:0, hazCD:0, orbCD:0,
     atkCD: rand(2,4), spin:0, chargeT:0, spdMul:1,
   };
@@ -530,7 +532,10 @@ function updateUltraAttack(e, p, dt, a) {
 function dealDamage(e, dmg, knockX=0, knockY=0, crit=false) {
   if (e.frozen > 0) dmg *= 1.5;          // frozen enemies take +50% (Cryo Nova shatter)
   e.hp -= dmg; e.hitFlash = 0.08;
-  if (knockX || knockY) { e.knock.x += knockX; e.knock.y += knockY; }
+  if (knockX || knockY) {                 // knockback scales with the player's Knockback stat and inversely with enemy mass
+    const kf = (G.player ? (G.player.knockback || 0) : 0) / (e.mass || 1);
+    e.knock.x += knockX * kf; e.knock.y += knockY * kf;
+  }
   spawnText(e.x, e.y - e.r, Math.round(dmg), crit ? '#ffcf3a' : '#ffffff', crit);
   if (e.hp <= 0) killEnemy(e);
 }
@@ -1090,7 +1095,9 @@ function hurtPlayer(amount) {
 }
 function gainXP(n) {
   const p = G.player;
-  p.xp += n * p.xpMult;
+  const got = n * p.xpMult;
+  p.xp += got;
+  G.runXp = (G.runXp || 0) + got;          // tracks XP actually earned this run (feeds wave-skip math)
   // Crossing several thresholds at once (boss gem showers, big single gems) queues one
   // card pick PER level; they're presented one at a time so no level-up is ever skipped.
   while (p.xp >= p.xpNext) {
@@ -1358,7 +1365,7 @@ function startRun() {
   const startWave = save.skipOn === false ? 1 : clamp(save.startWave||1, 1, save.skipMax||1);
   Object.assign(G, {
     state:'play', enemies:[], bullets:[], ebullets:[], gems:[], coins:[], parts:[], texts:[], orbs:[], beams:[], hazards:[],
-    time:0, kills:0, runCoins:0, spawnT:0, bossesKilled:0, bossesAlive:0, bossEvent:0, ultraIndex:0, revives:0, finalized:false, pendingLevels:0,
+    time:0, kills:0, runCoins:0, runXp:0, runWaves:0, spawnT:0, bossesKilled:0, bossesAlive:0, bossEvent:0, ultraIndex:0, revives:0, finalized:false, pendingLevels:0,
     wave:startWave, waveT:0, bossWave:false, bestWave:startWave,
     slowT:0, flash:0, zoom:1, adRevived:false, adDoubled:false,
   });
@@ -1548,10 +1555,15 @@ function applyCard(c) {
 // loadout, so a skipped run is actually playable (skipping is a fast-forward, not a
 // handicap). Permanent power still carries from meta/relics/ship as usual.
 function applyWaveSkip(w) {
-  const p = G.player;
-  const target = clamp(1 + Math.round((w-1)*0.45), 1, 80);   // ~half the head-start you'd earn organically
+  const p = G.player, L = save.lifeStats;
+  // grant 70% of the average XP-per-wave you've actually earned, over every wave skipped
+  const avg = (L.totalXp || 0) / Math.max(1, L.wavesPlayed || 0);
+  let xpBank = 0.7 * avg * Math.max(0, w - 1);
+  // spend that XP banking levels, keeping the remainder as progress toward the current level
+  let target = 1;
+  while (target < 200 && xpBank >= xpForLevel(target)) { xpBank -= xpForLevel(target); target++; }
   let guard = 0;
-  while (p.level < target && guard++ < 300) {
+  while (p.level < target && guard++ < 400) {
     const cards = rollCards();
     // bias toward a strong build: new weapons first, then weapon levels, then anything
     const chosen = cards.find(c=>c.kind==='wnew') || cards.find(c=>c.kind==='wlvl')
@@ -1560,7 +1572,7 @@ function applyWaveSkip(w) {
     applyCardEffect(chosen);
     p.level++;
   }
-  p.xp = 0; p.xpNext = xpForLevel(p.level);
+  p.xp = Math.max(0, Math.floor(xpBank)); p.xpNext = xpForLevel(p.level);
   p.hp = p.maxHp;
 }
 
@@ -1626,10 +1638,10 @@ function renderMeta() {
 // ---- wave-skip upgrade — buy the right to start runs at a later wave.
 // Each tier is GATED behind having actually reached that wave (save.maxWave).
 const SKIP_STEP = 5;                                   // start-wave tiers: 5, 10, 15, …
-function skipTierCost(w) { return Math.floor(150 * Math.pow(1.7, w/SKIP_STEP - 1)); }
-function allowedStartWaves() {                          // [1, 5, 10, … up to what's unlocked]
+function skipTierCost(w) { const tier = Math.max(1, Math.round((w - 1) / SKIP_STEP)); return Math.floor(150 * Math.pow(1.7, tier - 1)); }
+function allowedStartWaves() {                          // [1, 6, 11, … up to what's unlocked] — the wave AFTER a boss
   const arr = [1];
-  for (let w = SKIP_STEP; w <= (save.skipMax||1); w += SKIP_STEP) arr.push(w);
+  for (let w = SKIP_STEP + 1; w <= (save.skipMax||1); w += SKIP_STEP) arr.push(w);
   return arr;
 }
 // ---- special-weapons codex (Upgrades screen): which unique weapons exist & how to unlock each
@@ -1657,7 +1669,7 @@ function renderSkip() {
     : `<button data-skip="${next}" ${can?'':'disabled'}>${ico('coin',14)} ${fmt(cost)}</button>`;
   list.innerHTML = `<div class="shop-item"><div class="ic">${ico('fastforward',26)}</div>
     <div class="info"><h4>Wave Skip <span class="lvltag">Start: Wave ${cur}</span></h4>
-    <p>Unlock the next start wave (&rarr; Wave ${next}), then choose it on the menu. Skipped runs start level-scaled but grant only <b>half the XP</b> of running from Wave 1 — and you can switch skipping off anytime.</p></div>${btn}</div>`;
+    <p>Unlock the next post-boss start wave (&rarr; Wave ${next}), then choose it on the menu. A skipped run grants <b>70% of your average XP-per-wave</b> across the waves skipped — and you can switch skipping off anytime.</p></div>${btn}</div>`;
   list.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => buySkip(+b.dataset.skip));
 }
 function buySkip(w) {
@@ -1905,6 +1917,7 @@ function renderStats(mode='base') {
     if (pl.projBonus > 0) comps.push(['plus','Multishot','+'+pl.projBonus,'weapon']);
     if (pl.projMult > 1)  comps.push(['power','Overcharge','×'+pl.projMult.toFixed(2),'weapon']);
     if (pl.rangeMult > 1) comps.push(['range','Firing Range','×'+pl.rangeMult.toFixed(2),'weapon']);
+    if (pl.knockback > 0.1) comps.push(['power','Knockback','×'+pl.knockback.toFixed(2),'weapon']);
     if (pl.regen > 0)     comps.push(['heartplus','Regen','+'+pl.regen.toFixed(1)+'/s','weapon']);
   } else {
     const m = save.meta, p = save.p2w, r = save.relics;
@@ -2124,6 +2137,8 @@ function commitRun(earned) {
   L.coins      += earned;
   L.bosses     += G.bossesKilled;
   L.runs       += 1;
+  L.totalXp     = (L.totalXp||0) + (G.runXp||0);
+  L.wavesPlayed = (L.wavesPlayed||0) + (G.runWaves||0);
   L.bestTime    = Math.max(L.bestTime,  Math.floor(G.time));
   L.bestLevel   = Math.max(L.bestLevel, G.player.level);
   L.bestWeapons = Math.max(L.bestWeapons||1, G.player.weapons.length);
