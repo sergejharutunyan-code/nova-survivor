@@ -32,9 +32,9 @@ const DEFAULT_SAVE = {
   // lifetime + best stats that feed quests
   lifeStats: { kills:0, coins:0, bosses:0, runs:0, bestTime:0, bestLevel:0, bestWeapons:1, bestWave:0 },
   // per-field count of quests completed (chain progress)
-  quests: { slayer:0, survivor:0, tycoon:0, ascend:0, boss:0, veteran:0 },
+  quests: { slayer:0, survivor:0, tycoon:0, ascend:0, boss:0, veteran:0, purist:0 },
   // progress toward the CURRENT active step, counted only since it became active
-  questProg: { slayer:0, survivor:0, tycoon:0, ascend:0, boss:0, veteran:0 },
+  questProg: { slayer:0, survivor:0, tycoon:0, ascend:0, boss:0, veteran:0, purist:0 },
   // ultimate weapons unlocked at the end of quest trails
   unlockedWeapons: [],
   // daily challenge set
@@ -46,7 +46,7 @@ const DEFAULT_SAVE = {
   adGems: { date:'', n:0 },
   // mastery tier — lifetime weapon-evolution + per-ship piloting achievements
   mastery: { evolved:[], shipKills:{}, shipRuns:{}, shipBestTime:{}, shipBestLevel:{}, claimed:{} },
-  pity:   0, muted:0,
+  pity:   0, muted:0, useRelics:true, battleLog:[],
 };
 let save = load();
 function load() {
@@ -163,6 +163,8 @@ const WEAPONS = {
                  desc:'Warps time — drastically slows every enemy on the field for seconds.' },
   annihilate:  { name:'Annihilation', icon:'starburst', unique:true, cd:14,  color:'#ffcf3a', max:5,
                  desc:'Unleashes a screen-wide blast that obliterates everything in view.' },
+  goldrush:    { name:'Midas Protocol', icon:'coins', unique:true, cd:18, color:'#ffd166', max:5,
+                 desc:'Periodically triggers a GOLD RUSH: for a few seconds, every kill drops bonus gold.' },
 };
 const WEAPON_KEYS = Object.keys(WEAPONS);
 
@@ -233,13 +235,16 @@ const G = {
   wave: 1, waveT: 0, bossWave: false, bestWave: 1,
   spawnT: 0, bossesKilled: 0, bossesAlive: 0, bossEvent: 0, ultraIndex: 0,
   camX: 0, camY: 0, shake: 0, slowT: 0, flash: 0, zoom: 1,
-  revives: 0, pendingCards: [], pendingLevels: 0, rerolls: 0,
+  revives: 0, pendingCards: [], pendingLevels: 0, rerolls: 0, goldRush: 0, cleanRun: false, premiumUsed: false, skippedStart: false,
 };
 
 // Derived starting stats from all permanent sources (meta + premium + relics + ship).
 // Shared by newPlayer() and the Loadout/Stats screen so they never drift apart.
+// loot-crate relics are "premium equipment" — only deployed while the player leaves them switched on
+function relicsActive() { return save.useRelics !== false && Object.values(save.relics).some(v => v > 0); }
 function baseStats() {
-  const m = save.meta, p = save.p2w, r = save.relics;
+  const m = save.meta, p = save.p2w;
+  const r = save.useRelics === false ? { dmg:0, hp:0, speed:0, firerate:0, magnet:0, xp:0, crit:0 } : save.relics;
   const vip = p.vip ? 1 : 0;
   const sh = SHIPS[save.ship] || SHIPS.vanguard, mod = sh.mods;
   return {
@@ -536,6 +541,7 @@ function rollDamage(base) {
 function killEnemy(e) {
   e.dead = true;
   G.kills++;
+  if (G.goldRush > 0) G.runCoins += Math.max(1, Math.round(G.player.coinMult));   // Midas Protocol gold rush: +base gold/kill
   const gemN = e.ultra ? 6 : e.boss ? 14 : e.elite ? 5 : 1;   // mega bosses pay out in coins, not XP-gem orbs
   for (let i = 0; i < gemN; i++) {
     G.gems.push({ x:e.x+rand(-e.r,e.r), y:e.y+rand(-e.r,e.r), vx:rand(-40,40), vy:rand(-40,40), xp:e.xp, r:5 });
@@ -824,6 +830,11 @@ function uniqueFire(w, def, p) {
         } }
       G.flash = 0.35; G.shake = 16; ring(p.x, p.y, Math.max(W,H), '#ffcf3a'); SFX.legend(); break;
     }
+    case 'goldrush': {                                  // periodic GOLD RUSH — bonus gold per kill
+      G.goldRush = Math.max(G.goldRush||0, 6 + lvl*1.5);
+      ring(p.x, p.y, 220, '#ffd166'); G.flash = Math.max(G.flash, 0.12); SFX.legend();
+      toast(ico('coin',16)+' GOLD RUSH! &nbsp;bonus gold per kill', 1800); break;
+    }
   }
 }
 function updateHazards(dt) {
@@ -866,6 +877,7 @@ function update(dt) {
   const p = G.player;
   G.time += dt;
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt*40);
+  if (G.goldRush > 0) G.goldRush = Math.max(0, G.goldRush - dt);
 
   // movement
   const mv = moveVector();
@@ -1351,6 +1363,11 @@ function startRun() {
     slowT:0, flash:0, zoom:1, adRevived:false, adDoubled:false,
   });
   G.player = newPlayer();
+  // run flags: was premium loot-crate gear deployed, and did we skip ahead? (a "clean" run is neither)
+  G.skippedStart = startWave > 1;
+  G.premiumUsed  = relicsActive();
+  G.cleanRun     = !G.premiumUsed && !G.skippedStart;
+  G.goldRush     = 0;
   if (startWave > 1) applyWaveSkip(startWave);     // auto-leveled head start for skipped runs
   G.camX = G.player.x - W/2; G.camY = G.player.y - H/2;
   hide('menu'); hide('gameover'); show('hud'); updateSpeedBtn();
@@ -1614,6 +1631,22 @@ function allowedStartWaves() {                          // [1, 5, 10, … up to 
   const arr = [1];
   for (let w = SKIP_STEP; w <= (save.skipMax||1); w += SKIP_STEP) arr.push(w);
   return arr;
+}
+// ---- special-weapons codex (Upgrades screen): which unique weapons exist & how to unlock each
+function renderWeaponCodex() {
+  const list = $('weaponCodex'); if (!list) return;
+  const src = {}; for (const f of QUEST_FIELDS) if (f.weapon) src[f.weapon] = f;
+  const uniques = WEAPON_KEYS.filter(k => WEAPONS[k].unique);
+  list.innerHTML = uniques.map(k => {
+    const d = WEAPONS[k], owned = save.unlockedWeapons.includes(k), q = src[k];
+    const status = owned ? `<span class="lvltag ult">${ico('trophy',12)} UNLOCKED</span>`
+                         : `<span class="lvltag">${ico('lock',12)} LOCKED</span>`;
+    const how = owned ? 'Appears in your level-up card choices.'
+              : q ? `Finish the <b>${q.name}</b> lifetime mission — ${q.verb} ${fmt(q.steps[q.steps.length-1].target)} ${q.unit}.`
+                  : 'Locked.';
+    return `<div class="shop-item${owned?'':' locked-item'}"><div class="ic">${ico(d.icon,26)}</div>
+      <div class="info"><h4>${d.name} ${status}</h4><p>${d.desc}</p><p class="qsub">${how}</p></div></div>`;
+  }).join('');
 }
 function renderSkip() {
   const list = $('skipList'); if (!list) return;
@@ -1904,6 +1937,21 @@ function renderStats(mode='base') {
       `<div class="stat-card"><div class="ic">${ico(ic,22)}</div><div class="sc-meta"><span>${l}</span><b>${v}</b></div></div>`
     ).join('');
   }
+
+  // premium-relic deploy toggle reflects the saved setting
+  const rt = $('relicToggle'); if (rt) rt.checked = save.useRelics !== false;
+  // battle log — recent runs tagged CLEAN vs PREMIUM (loot-crate gear) and SKIP
+  const log = $('battleLog');
+  if (log) {
+    const rows = (save.battleLog || []).slice(0, 12);
+    log.innerHTML = rows.length
+      ? rows.map(r => {
+          const tag = r.premium ? `<span class="tag bl-prem">PREMIUM</span>` : `<span class="tag bl-clean">CLEAN</span>`;
+          const skip = r.skipped ? ` <span class="tag bl-skip">SKIP</span>` : '';
+          return `<div class="comp-row c-${r.premium?'p2w':'weapon'}"><span class="nm">Wave ${r.wave} · ${mmss(r.time||0)} · ${fmt(r.kills||0)} kills</span>${tag}${skip}</div>`;
+        }).join('')
+      : `<p class="empty-hint">No runs logged yet — finish a run and it'll appear here, tagged clean or premium.</p>`;
+  }
 }
 
 // ---- gacha
@@ -1969,6 +2017,8 @@ const QUEST_FIELDS = [
   { id:'ascend',   icon:'starburst', name:'Ascendant',   stat:'bestLevel', agg:'max', verb:'Reach level', unit:'in one run',   unlockAt:6,  weapon:'singularity', steps:questSteps(5,   1.3,  10) },
   { id:'boss',     icon:'boss', name:'Boss Hunter', stat:'bosses',    agg:'sum', verb:'Slay',        unit:'bosses',       unlockAt:9,  weapon:'annihilate',  steps:questSteps(1,   1.55, 10) },
   { id:'veteran',  icon:'medal', name:'Veteran',     stat:'runs',      agg:'sum', verb:'Complete',    unit:'runs',         unlockAt:12, weapon:'cryo',        steps:questSteps(3,   1.4,  10) },
+  { id:'purist',   icon:'shield', name:'Purist',      stat:'cleanWave', agg:'max', verb:'Reach wave',  unit:'with NO premium gear, from Wave 1', unlockAt:3, weapon:'goldrush',
+    steps:[{target:8,reward:22},{target:12,reward:20},{target:16,reward:18},{target:20,reward:16},{target:25,reward:30}] },
 ];
 function questRunContribution(f, earned) {
   switch (f.stat) {
@@ -1978,6 +2028,7 @@ function questRunContribution(f, earned) {
     case 'runs':      return 1;
     case 'bestTime':  return Math.floor(G.time);
     case 'bestLevel': return G.player.level;
+    case 'cleanWave': return G.cleanRun ? G.bestWave : 0;   // only counts runs with no premium gear & no wave-skip
   }
   return 0;
 }
@@ -2078,6 +2129,11 @@ function commitRun(earned) {
   L.bestWeapons = Math.max(L.bestWeapons||1, G.player.weapons.length);
   L.bestWave    = Math.max(L.bestWave||0, G.bestWave);
   if (G.bestWave > (save.maxWave||1)) save.maxWave = G.bestWave;   // unlocks wave-skip tiers
+  // battle log: newest first, flags whether premium loot-crate gear was deployed / wave was skipped
+  save.battleLog = save.battleLog || [];
+  save.battleLog.unshift({ wave:G.bestWave, time:Math.floor(G.time), kills:G.kills, coins:earned,
+                           premium:!!G.premiumUsed, skipped:!!G.skippedStart, ship:save.ship||'vanguard' });
+  if (save.battleLog.length > 20) save.battleLog.length = 20;
   // per-ship piloting stats (drives the hangar Mastery challenges)
   const ship = save.ship || 'vanguard', mk = save.mastery;
   mk.shipKills[ship]     = (mk.shipKills[ship]||0) + G.kills;
@@ -2114,6 +2170,16 @@ function updateBadges() {
     const el = $(id); if (!el) continue;
     if (n > 0) { el.textContent = n; el.classList.remove('hidden'); } else el.classList.add('hidden');
   }
+}
+function updateTabBadges() {
+  ensureDaily();
+  let daily=0, lifetime=0, mastery=0;
+  for (const c of save.daily.chals) if (!c.claimed && challengeEffProg(c) >= c.target) daily++;
+  const total = totalQuestsClaimed();
+  for (const f of QUEST_FIELDS) { if (total < f.unlockAt) continue; const step=f.steps[save.quests[f.id]]; if (step && questProgressVal(f) >= step.target) lifetime++; }
+  for (const d of MASTERY_DEFS) if (masteryClaimable(d)) mastery++;
+  const set = (id,n) => { const el=$(id); if(!el) return; if(n>0){el.textContent=n; el.classList.remove('hidden');} else el.classList.add('hidden'); };
+  set('tabBadgeChal', daily); set('tabBadgeQuest', lifetime); set('tabBadgeMastery', mastery);
 }
 function claimChallenge(i) {
   const c = save.daily.chals[i];
@@ -2152,7 +2218,7 @@ function showWeaponUnlock(key) {
 function renderGoals() {
   ensureDaily(); refreshWallet();
   $('chalReset').textContent = resetCountdown();
-  renderChallenges(); renderQuests(); renderMastery(); updateBadges();
+  renderChallenges(); renderQuests(); renderMastery(); updateBadges(); updateTabBadges();
 }
 function renderChallenges() {
   const list = $('chalList');
@@ -2244,7 +2310,8 @@ $('adDoubleBtn').onclick = () => {
   });
 };
 $('goalsBtn').onclick   = () => { renderGoals(); show('goals'); };
-$('metaBtn').onclick    = () => { renderMeta(); renderSkip(); refreshWallet(); show('metashop'); };
+$('metaBtn').onclick    = () => { renderMeta(); renderSkip(); renderWeaponCodex(); refreshWallet(); show('metashop'); };
+$('relicToggle') && ($('relicToggle').onchange = (e) => { save.useRelics = e.target.checked; persist(); if (G.state === 'menu') renderStats(); });
 $('waveUp')   && ($('waveUp').onclick   = () => cycleStartWave(1));
 $('waveDown') && ($('waveDown').onclick = () => cycleStartWave(-1));
 $('skipToggle') && ($('skipToggle').onchange = e => { save.skipOn = e.target.checked; persist(); renderWaveSelect(); });

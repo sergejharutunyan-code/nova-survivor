@@ -280,7 +280,13 @@ h2.danger{background:linear-gradient(180deg,#ffd3da,#ff5d77);-webkit-background-
 .round-btn:hover{transform:scale(1.06);box-shadow:0 8px 22px rgba(0,0,0,.5);}
 .round-btn:active{transform:scale(.92);}
 /* live game-speed switch (sits left of the pause button) */
-.speed-btn{right:66px;width:auto;min-width:46px;padding:0 12px;font-weight:900;font-size:15px;font-variant-numeric:tabular-nums;color:var(--cyan);}
+.speed-btn{top:calc(max(12px,env(safe-area-inset-top)) + 56px);right:12px;width:auto;min-width:46px;padding:0 12px;font-weight:900;font-size:15px;font-variant-numeric:tabular-nums;color:var(--cyan);}
+/* premium-relic deploy toggle + battle-log tags (Loadout/Stats screen) */
+.relic-toggle{display:flex;align-items:center;gap:9px;width:min(580px,94vw);font-size:12.5px;font-weight:650;color:var(--dim);cursor:pointer;line-height:1.45;text-align:left;}
+.relic-toggle input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--gold);cursor:pointer;}
+.relic-toggle b{color:var(--green);}
+.bl-prem{color:var(--gold);} .bl-clean{color:var(--green);} .bl-skip{color:#bda0ff;}
+.locked-item{opacity:.7;}
 .chip{transition:transform .15s var(--ease);}
 .wallet .chip:hover{transform:translateY(-1px);}
 
