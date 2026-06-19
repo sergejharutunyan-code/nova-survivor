@@ -2051,7 +2051,7 @@ function fireWeapon(w, def, p) {
       break;
     }
     case 'nova': {
-      const radius = firingRange(p) * (w.evolved ? 1.4 : 1);   // base matches the blaster's range ring; Solar Flare is wider
+      const radius = firingRange(p) * 0.75 * (w.evolved ? 1.4 : 1);   // 3/4 of the blaster's range; Solar Flare is wider
       ring(p.x, p.y, radius, w.evolved ? '#ff8a5b' : def.color);
       for (const e of G.enemies) {
         if (e.dead) continue;
