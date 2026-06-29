@@ -21,6 +21,9 @@ platform/
 ├── sprites.js            # procedural sprite atlas (no image files)
 ├── space.js              # living parallax starfield + nebula background
 ├── game.js               # the entire engine + game + economy
+├── build-standalone.py   # bundles everything into one offline nova-survivor.html
+├── nova-survivor.html    # generated single-file build (open anywhere, no server)
+├── .github/workflows/    # GitHub Pages auto-deploy on push to main
 ├── manifest.json         # PWA manifest
 ├── assets/               # app icon, splash, favicon (icon.png, splash.png …)
 ├── package.json          # dev server + capacitor scripts
@@ -43,6 +46,12 @@ npm start          # serves on http://localhost:8080  (uses npx serve)
 Or open `index.html` directly in a browser. (A server is recommended so `localStorage` saves persist
 under a stable origin, and so audio unlocks cleanly.)
 
+**Play online** — every push to `main` auto-deploys to GitHub Pages via
+`.github/workflows/deploy-pages.yml`: <https://sergejharutunyan-code.github.io/nova-survivor/>
+
+**Single-file build** — `npm run build:standalone` (or `python3 build-standalone.py`) inlines all
+JS/CSS into **`nova-survivor.html`**, one fully-offline file you can open directly or host anywhere.
+
 **Controls**
 - **Mobile:** touch & hold anywhere to spawn a joystick; drag to move. Guns fire automatically.
 - **Desktop:** WASD / arrow keys to move, `Esc` to pause.
@@ -56,10 +65,11 @@ under a stable origin, and so audio unlocks cleanly.)
 3. **Weapon EVOLUTIONS** — max a weapon **and** own its catalyst stat → a special EVOLVE card
    transforms it into a far stronger form (the genre's signature "aha" moment).
 4. **Death is progress** — every run banks 🪙 coins → permanent **Upgrades** (meta shop).
-5. **The wall** — difficulty ramps; a **boss** every 60s. You *can* push further with money.
-6. **Pay-to-win** — 💎 gems buy: ×2 coins forever, +50% damage stacks, auto-revive, VIP (+20% all),
+5. **The wall** — difficulty ramps exponentially; a **boss every 10th wave**, plus a rare **mega-boss** roughly every 4th boss. You *can* push further with money.
+6. **Pay-to-win** — 💎 gems buy: **Game Speed** (the base game runs slow — pay to speed it up and
+   switch speeds live mid-run), ×2 coins forever, +50% damage stacks, auto-revive, VIP (+20% all),
    a starting arsenal, run revives, card rerolls, and a **gacha crate** of permanent relics
-   (Common → Mythic, with pity at 10 pulls).
+   (Common → Mythic, with pity at 10 pulls). Crate "equipment" (relics) can be **toggled off** to run *clean*.
 7. **Come back tomorrow** — daily login streak (7-day escalating rewards), daily challenges,
    and daily free-gem ads form the habit loop.
 8. **Missions, three tiers deep** — short-term, long-term, and identity goals, each paying gems.
@@ -76,10 +86,9 @@ which makes enemy scaling far easier to tune and unlocks the **wave-skip** meta 
   (`difficultyScale(wave)`, `dmgScale(wave)`, `enemyTypeFor(wave)`). Normal waves last
   `WAVE_TIME` seconds; **every 10th wave is a BOSS wave** that holds the run until it's cleared
   (and roughly every 4th boss is a rare, far tougher **mega-boss** event with a big loot payout).
-- **Wave Skip (meta upgrade, coins).** Buy the right to start runs at a later wave — but each tier
-  is **gated behind actually reaching that wave** (`save.maxWave`). e.g. *Start at Wave 10* only
-  appears once you've survived to wave 10. A **start-wave selector** on the main menu lets you pick
-  any unlocked wave (1, 5, 10, …) before pressing PLAY.
+- **Wave Skip (meta upgrade, coins).** A single tiered upgrade unlocks later **post-boss** start
+  waves (6, 11, 16, …), each **gated behind actually reaching that wave** (`save.maxWave`). A
+  **start-wave selector** on the main menu lets you pick any unlocked wave before pressing PLAY.
 - **Skipping is a head start with a cost.** Start-wave tiers are the post-boss waves (6, 11, 16, …).
   A skipped run drops you in with an **auto-built loadout** (`applyWaveSkip`) banked from **70% of
   your lifetime average XP-per-wave** times the waves skipped — a discount, not free power. A
@@ -89,7 +98,17 @@ which makes enemy scaling far easier to tune and unlocks the **wave-skip** meta 
   difficulty and the new **Reach Wave N** daily challenge.
 
 Tuning knobs: `WAVE_TIME`, `BOSS_EVERY`, `difficultyScale`, `dmgScale`, `enemyTypeFor`,
-`SKIP_STEP`, `skipTierCost()`.
+`SKIP_STEP`, `skipTierCost()`, `NORMAL_PER_ULTIMATE`.
+
+Enemies are introduced **one type at a time on a complexity ramp** (basics dominate early and thin
+out to a floor; specials enter rare and grow more common), tuned in `enemyTypeFor()`.
+
+### ⏩ Game speed (premium)
+
+By default the simulation runs at **⅓ speed** (the action is dense). The premium **Game Speed**
+upgrade (`P2W_DEFS`, exponential gem price) unlocks faster steps you can **switch between live** with
+the in-run speed button — ×1 up to ×5. Everything scales off `gameSpeedMult()`, so the slow-down is
+uniform while rendering stays smooth.
 
 ### 🎯 Missions — the 3-tier challenge system (v1.2)
 
@@ -117,11 +136,45 @@ run-end (`commitRun`). The menu/pause badge counts claimable items across all th
 | Plasma Blaster | Multishot | **Astral Railstorm** — infinite-pierce lances |
 | Scatter Cannon | Amplify | **Supernova Burst** — pellets explode on impact |
 | Homing Swarm | Rapid Fire | **Dragonfire Swarm** — +2 missiles, explosive warheads |
-| Aegis Orbs | Thrusters | **Halo of Ruin** — +3 blades, wider, faster, 2× damage |
-| Nova Pulse | Reinforce | **Solar Flare** — wider shockwave + burn DoT |
+| Aegis Orbs | Thrusters | **Halo of Ruin** — +3 orbs on a ring that *breathes* 1×→3×, Fire-Rate-driven spin, 2× damage |
+| Nova Pulse | Reinforce | **Solar Flare** — every **7th** pulse erupts at **3× range** + burn DoT |
 | Rail Beam | Targeting Array | **Prism Array** — three beams, three targets |
+| Aegis Shield | Nanobots | **Riposte Field** — a block fires a retaliating arc (25% to delete projectiles in its path) |
 
 Max the weapon's level, hold ≥1 stack of the catalyst, and the EVOLVE card appears at level-up.
+
+### 🛡 Combat depth — ranges, knockback & the Shield
+
+- **Shared ranges** — the on-screen ring is the **Plasma Blaster**'s reach; **Scatter Cannon** shares
+  it, **Nova Pulse** = ¾, **Aegis Orbs** orbit at ½, **Rail Beam** reaches 3×. (`firingRange()`)
+- **Knockback** starts near-zero and is its own upgrade. Final push =
+  `KB_BASE × weapon.kb × player Knockback ÷ enemy mass` — per-weapon `kb` (Nova 2, Scatter 1.3,
+  Plasma 1, Orbs 0.2, Rail 0.1, Homing 0) and enemy **mass** (swarm 0.6 … brute 8, boss 30, mega 60),
+  so heavy foes barely budge.
+- **Aegis Shield** (a 7th weapon) — a passive barrier with **charges** (1 + level/2, +2 evolved) that
+  fully block one incoming hit (projectile or contact), then **recharge faster with Fire Rate**
+  (capped at one per `max(2.5s, 6/fireRate)`).
+
+### 📜 Records, battle log & the Purist run
+
+- **Records + Battle Log** (Loadout & Stats screen) — personal bests plus a history of recent runs,
+  each tagged **CLEAN** vs **PREMIUM** (loot-crate relics deployed) and **SKIP**, so scores compare.
+- **Purist** — a lifetime mission to reach high waves with **no premium gear, from Wave 1** (a
+  wave-skip voids it). It unlocks **Midas Protocol**, a unique weapon that periodically triggers a
+  **gold rush** (bonus gold per kill).
+- **Special Weapons codex** in the Upgrades screen lists every unique weapon, whether it's unlocked,
+  and which mission unlocks it.
+
+### 🪙 Economy & quality-of-life
+
+- **Meta (coin) upgrades are limitless** (smaller per-level effect, exponential price) — buy in bulk
+  with **×1 / ×10 / ×100 / MAX**.
+- **Exponential XP curve** (`xpForLevel`) so leveling decelerates the higher you climb; a **skipped
+  wave** banks 70% of your lifetime average XP-per-wave.
+- **Reroll** cost escalates each consecutive use within a level (1 → 2 → 4 → 8 💎); when only filler
+  cards remain you can **auto-pick** them.
+- **Gacha** crate supports **×1 / ×10 / ×100** pulls; **per-tab Mission badges** show which of Daily /
+  Lifetime / Mastery has something to claim.
 
 ### 🚀 Pilot ships (v1.1)
 
@@ -238,6 +291,12 @@ Keep the grant inside the reward callback so closing the ad early grants nothing
 | Difficulty curve (per-wave exponential) | `difficultyScale()`, `dmgScale()`, `spawnWave()` |
 | Ultimate bosses (roster, attacks, combos) | `ULTRA_BOSSES`, `updateUltraAttack()`, `ultraComboFor()`, `NORMAL_PER_ULTIMATE` |
 | Boss cadence | `BOSS_EVERY` (every Nth wave is a boss wave) |
+| Game speed (slow base + premium tiers) | `gameSpeedMult()`, `GAME_SPEED_BASE`, `cycleGameSpeed()`, `P2W_DEFS` `gameSpeed` |
+| Knockback + enemy mass | `WEAPONS` `kb`, `KB_BASE`, `E_DEF` `mass`, `dealDamage()`, STAT_UP `knock` |
+| Aegis Shield | `updateShield()`, `shieldArc()`, `hurtPlayer()` |
+| XP curve / skip XP | `xpForLevel()`, `applyWaveSkip()` (70% of lifetime avg XP/wave) |
+| Records & battle log | `renderStats()`, `commitRun()`, `save.battleLog` |
+| Premium-gear clean-run flag | `relicsActive()`, `save.useRelics`, quest `purist` |
 | Meta (coin) shop | `META_DEFS` |
 | Pay-to-win shop | `P2W_DEFS` |
 | IAP gem packs | `IAP_DEFS` |
