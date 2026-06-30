@@ -16,10 +16,20 @@ function mk(S, drawFn) {
   const c = document.createElement('canvas');
   c.width = S; c.height = S;
   const g = c.getContext('2d');
+  g.save();
   g.translate(S/2, S/2);
   g.scale(0.82, 0.82);
   g.lineJoin = 'round'; g.lineCap = 'round';
   drawFn(g, S);
+  g.restore();
+  // bake a "lit from above" sheen + lower ambient shade onto the drawn shape — cheap fake-3D volume
+  g.globalCompositeOperation = 'source-atop';
+  const lit = g.createLinearGradient(0, 0, 0, S);
+  lit.addColorStop(0,    'rgba(255,255,255,0.22)');
+  lit.addColorStop(0.45, 'rgba(255,255,255,0)');
+  lit.addColorStop(1,    'rgba(8,10,22,0.36)');
+  g.fillStyle = lit; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'source-over';
   return c;
 }
 // white silhouette (for hit-flash), preserves alpha
@@ -76,13 +86,18 @@ function hullFill(g, S, pal, lo, hi) {       // gradient body fill for the curre
   g.lineWidth = S*0.022; g.strokeStyle = pal.stroke; g.stroke();
 }
 function cockpit(g, S, pal, cy=-S*0.12, rr=S*0.10) {
-  g.beginPath(); g.arc(0, cy, rr, 0, TAU); g.fillStyle='#0b1024'; g.fill();
+  g.beginPath(); g.arc(0, cy, rr, 0, TAU);
+  const cg = g.createLinearGradient(0, cy-rr, 0, cy+rr);     // reflective glass dome
+  cg.addColorStop(0, pal.canopy); cg.addColorStop(0.5, '#0b1024'); cg.addColorStop(1, '#05060f');
+  g.fillStyle = cg; g.fill();
   g.lineWidth=S*0.018; g.strokeStyle=pal.canopy; g.stroke();
-  g.beginPath(); g.arc(-rr*0.32, cy-rr*0.32, rr*0.42, 0, TAU); g.fillStyle='rgba(255,255,255,.85)'; g.fill();
+  g.beginPath(); g.arc(-rr*0.30, cy-rr*0.34, rr*0.42, 0, TAU); g.fillStyle='rgba(255,255,255,.92)'; g.fill();   // specular glint
 }
 function engines(g, S, xs, y=S*0.34, w=S*0.07, h=S*0.10) {
-  g.fillStyle='#ffcf3a';
+  glow(g, '#ffcf3a', S, 0.09); g.fillStyle='#ffcf3a';
   xs.forEach(x => { roundRect(g, x-w/2, y, w, h, S*0.02); g.fill(); });
+  noglow(g); g.fillStyle='#fff6d8';                          // hot bright core
+  xs.forEach(x => { roundRect(g, x-w*0.28, y+h*0.10, w*0.56, h*0.6, S*0.02); g.fill(); });
 }
 
 // 1) Vanguard — balanced interceptor: slim fuselage + broad swept delta wings
@@ -500,5 +515,19 @@ function drawMask(ctx, key, x, y, size, rot, alpha) {
   ctx.restore();
 }
 
-window.Sprites = { draw, drawMask, _cache: cache };
+// soft contact-shadow blob (baked once) + helper to drop it under any sprite for grounding/depth
+const SHADOW = (() => {
+  const S = 64, sc = document.createElement('canvas'); sc.width = S; sc.height = S;
+  const sg = sc.getContext('2d');
+  const gr = sg.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
+  gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.26)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  sg.fillStyle = gr; sg.beginPath(); sg.arc(S/2, S/2, S/2, 0, TAU); sg.fill();
+  return sc;
+})();
+function shadow(ctx, x, y, w, h, alpha=1) {
+  if (alpha !== 1) { ctx.save(); ctx.globalAlpha = alpha; }
+  ctx.drawImage(SHADOW, x - w/2, y - h/2, w, h);
+  if (alpha !== 1) ctx.restore();
+}
+window.Sprites = { draw, drawMask, shadow, _cache: cache };
 })();

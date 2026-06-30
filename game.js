@@ -1207,6 +1207,7 @@ function render() {
     if (e.boss) rot = G.time*0.6;
     else if (e.dash) rot = Math.atan2(p.y-e.y, p.x-e.x) + Math.PI/2;   // charger faces the player
     const sz = e.r*2.7;
+    Sprites.shadow(ctx, ex, ey + e.r*0.5, e.r*2.3, e.r*1.0);   // contact shadow grounds the enemy
     Sprites.draw(ctx, e.type, ex, ey, sz, rot);
     if (e.hitFlash > 0) Sprites.drawMask(ctx, e.type, ex, ey, sz, rot, clamp(e.hitFlash/0.08,0,1)*0.85);
     if (e.dash && e.dashState === 'telegraph') {              // wind-up warning flash
@@ -1271,6 +1272,7 @@ function render() {
     ctx.closePath(); ctx.fill();
     ctx.restore(); ctx.shadowBlur = 0;
   }
+  Sprites.shadow(ctx, px, py + p.r*0.5, p.r*2.6, p.r*1.15);   // contact shadow under the ship
   // shield ring
   ctx.save();
   ctx.strokeStyle = p.invuln>0 ? 'rgba(255,255,255,.85)' : 'rgba(61,240,255,.45)';
